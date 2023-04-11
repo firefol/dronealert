@@ -13,16 +13,17 @@ import com.example.testapplication.utils.IStreamReceiver
 import com.felhr.usbserial.UsbSerialDevice
 import com.felhr.usbserial.UsbSerialInterface.UsbReadCallback
 import com.jjoe64.graphview.series.DataPoint
-import com.jjoe64.graphview.series.PointsGraphSeries
 import kotlinx.coroutines.*
-import kotlin.random.Random
 
 
 class AnalyzeViewModel : ViewModel() {
 
-    private var _start: Long = 0
-    private var _stop: Long = 0
+    var _start: Long = 0
+    var _stop: Long = 0
     var _step: Long = 0
+    var starList = mutableListOf<Long>()
+    var stopList = mutableListOf<Long>()
+    var request = 0
     private var _attenuation: Long = 0
     private var _pointIndex = 0
     private var _pointShift = 0
@@ -30,7 +31,7 @@ class AnalyzeViewModel : ViewModel() {
     private var _streamReceiver: IStreamReceiver? = null
     private var _messageIndex = 0
     private val _message = ByteArray(2048)
-    var yCount = -200000000.00
+    var check = true
 
 
     companion object {
@@ -55,9 +56,11 @@ class AnalyzeViewModel : ViewModel() {
     var serialVM: UsbSerialDevice? = null
     private var liveDataCoordinates: MutableLiveData<List<DataPoint>> = MutableLiveData()
     var listCoordinates = mutableListOf<DataPoint>()
-    var check = true
+    var coord1 = mutableListOf<List<DataPoint>>()
     var coord2 = mutableListOf<List<DataPoint>>()
-    private var liveDataSeries: MutableLiveData<List<List<Bitmap>>> =
+    private var liveDataSeries1: MutableLiveData<List<List<Bitmap>>> =
+        MutableLiveData()
+    private var liveDataSeries2: MutableLiveData<List<List<Bitmap>>> =
         MutableLiveData()
 
 
@@ -65,16 +68,36 @@ class AnalyzeViewModel : ViewModel() {
         return liveDataCoordinates
     }
 
-    fun getLiveDataSeriesObserver(): LiveData<List<List<Bitmap>>> {
-        return liveDataSeries
+    fun getLiveDataSeriesObserver1(): LiveData<List<List<Bitmap>>> {
+        return liveDataSeries1
     }
 
-    @OptIn(DelicateCoroutinesApi::class)
+    fun getLiveDataSeriesObserver2(): LiveData<List<List<Bitmap>>> {
+        return liveDataSeries2
+    }
+
+
     fun startScan() {
         val job = viewModelScope.launch(Dispatchers.IO) {
             while (check) {
-                _start = 2400000000L // 2400 MHz
-                _stop = 2500000000L // 2499 MHz
+                if (request == 0) {
+                    _start = starList[request]
+                    _stop = stopList[request]
+                    request = 1
+                } else {
+                    if (starList.size == 1 && stopList.size == 1)
+                    {
+                        request = 0
+                        _start = starList[request]
+                        _stop = stopList[request]
+                    } else {
+                        _start = starList[request]
+                        _stop = stopList[request]
+                        request = 0
+                    }
+                }
+                //= 2400000000L // 2400 MHz
+                //= 2500000000L // 2499 MHz
                 //_step = 500000L //  500 KHz
                 _attenuation = 0 //    0 dB
                 val attenuation =
@@ -91,7 +114,7 @@ class AnalyzeViewModel : ViewModel() {
                     0 // command id (can be a random integer value)
                 )
                 serialVM?.write(command.toByteArray())
-                delay(500L)
+                delay(200L)
             }
         }
         job.start()
@@ -188,11 +211,30 @@ class AnalyzeViewModel : ViewModel() {
             _pointIndex = 0
         } else if (readMessage.contentEquals("complete")) {
             val list = listCoordinates.sortedBy { it.x }
-            if (list.size == 301) {
-                coord2.add(0, list)
-                liveDataCoordinates.postValue(list)
-                qwe()
-                onCommandComplete()
+            if (list.size == 301 && _step == 500000L) {
+                if (list[0].x == (starList[0] / 1000000L).toDouble()){
+                    coord1.add(0, list)
+                    liveDataCoordinates.postValue(list)
+                    qwe(coord1)
+                    onCommandComplete()
+                } else {
+                    coord2.add(0, list)
+                    liveDataCoordinates.postValue(list)
+                    qwe(coord2)
+                    onCommandComplete()
+                }
+            } else if (list.size == 201 && _step == 1000000L) {
+                if (list[0].x == (starList[0] / 1000000L).toDouble()){
+                    coord1.add(0, list)
+                    liveDataCoordinates.postValue(list)
+                    qwe(coord1)
+                    onCommandComplete()
+                } else {
+                    coord2.add(0, list)
+                    liveDataCoordinates.postValue(list)
+                    qwe(coord2)
+                    onCommandComplete()
+                }
             }
         }
     }
@@ -212,38 +254,44 @@ class AnalyzeViewModel : ViewModel() {
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
-    fun qwe() {
-        if (coord2.size == 100) {
-            coord2.removeLast()
+    fun qwe(coord: MutableList<List<DataPoint>>) {
+        if (coord.size == 100) {
+            coord.removeLast()
         }
-        if (coord2.isNotEmpty()) {
-            addListsSeries()
+        if (coord.isNotEmpty()) {
+            addListsSeries(coord)
         }
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
-    private fun addListsSeries() {
-        val bitmap = Bitmap.createBitmap(201, 100, Bitmap.Config.ARGB_8888)
+    private fun addListsSeries(coord: MutableList<List<DataPoint>>) {
+        val width = (((_stop - _start) / 1000000L).toDouble() / (_step.toDouble() / (1000000L).toDouble()))
+        val bitmap = Bitmap.createBitmap(width.toInt()+1,100, Bitmap.Config.ARGB_8888)
         bitmap.eraseColor(Color.argb((255 - 99).toFloat(), 0F, 0F, 0F))
         val listSeries = mutableListOf<Bitmap>()
         val list = mutableListOf<List<Bitmap>>()
-        for (i in 0 until coord2.size) {
+        for (i in 0 until coord.size) {
             var x = 0
-            for (j in 0 until  coord2[i].size) {
-                if (j == coord2[i].lastIndex) {
+            for (j in 0 until coord[i].size) {
+                if (j == coord[i].lastIndex) {
                     break
                 }
-                if (coord2[i][j].x == coord2[i][j + 1].x)
+                if (coord[i][j].x == coord[i][j + 1].x)
                     continue
                 else {
-                    bitmap.setPixel(x, i, Color.argb(((255 + coord2[i][j].y).toFloat()), 0F, 0F, 0F))
+                    bitmap.setPixel(
+                        x,
+                        i,
+                        Color.argb(((255 + coord[i][j].y.toInt()).toFloat()), 0F, 0F, 0F)
+                    )
                     listSeries.add(bitmap)
                     x++
                 }
             }
-            list.add(0,listSeries)
+            list.add(0, listSeries)
         }
-        liveDataSeries.postValue(list)
+        if (coord[0][0].x == (starList[0] / 1000000L).toDouble()) liveDataSeries1.postValue(list)
+        else liveDataSeries2.postValue(list)
     }
 
     @RequiresApi(Build.VERSION_CODES.O)

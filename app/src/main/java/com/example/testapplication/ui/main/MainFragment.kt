@@ -11,10 +11,14 @@ import android.hardware.usb.UsbDeviceConnection
 import android.hardware.usb.UsbManager
 import android.os.Bundle
 import android.view.*
+import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.core.content.ContextCompat.registerReceiver
+import androidx.core.view.get
+import androidx.core.view.indices
+import androidx.core.view.size
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.navigation.fragment.findNavController
@@ -34,7 +38,7 @@ class MainFragment : Fragment() {
     var device: UsbDevice? = null
     var serial: UsbSerialDevice? = null
     var connection: UsbDeviceConnection? = null
-    private val counter = 3
+    private val counter = 2
     private var allEds: MutableList<View>? = null
 
     val ACTION_USB_PERMISSION = "permission"
@@ -47,7 +51,7 @@ class MainFragment : Fragment() {
         return binding.root
     }
 
-    @SuppressLint("WrongConstant", "InflateParams")
+    @SuppressLint("WrongConstant", "InflateParams", "SetTextI18n")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         binding.toolbar.inflateMenu(R.menu.toolbar)
@@ -63,11 +67,16 @@ class MainFragment : Fragment() {
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
         binding.connectButton.setOnClickListener {
-            // if (serial != null) {
-            analyzeViewModel._step = (binding.editTextNumber3.text.toString().toLong() * 1000L)
-            analyzeViewModel.serialVM = serial
-            findNavController().navigate(R.id.analyzeFragment)
-            //}
+            if (serial != null) {
+                //val test = binding.linearlistlayout[0]
+                for (i in binding.linearlistlayout.indices){
+                analyzeViewModel.starList.add(binding.linearlistlayout[i].findViewById<EditText>(R.id.editTextNumber).text.toString().toLong() * 1000000L)
+                analyzeViewModel.stopList.add(binding.linearlistlayout[i].findViewById<EditText>(R.id.editTextNumber2).text.toString().toLong() * 1000000L)
+                analyzeViewModel._step = (binding.editTextNumber3.text.toString().toLong() * 1000L)
+                    }
+                analyzeViewModel.serialVM = serial
+                findNavController().navigate(R.id.analyzeFragment)
+            }
         }
         allEds = mutableListOf()
         for (i in 1..counter) {
@@ -94,7 +103,7 @@ class MainFragment : Fragment() {
             }
         }
         imageButtonAdd.setOnClickListener {
-            if (allEds!!.size == 3) return@setOnClickListener
+            if (allEds!!.size == counter) return@setOnClickListener
             else {
                 try {
                     //binding.linearlistlayout.removeView(view)
@@ -185,7 +194,7 @@ class MainFragment : Fragment() {
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == R.id.setting){
+        if (item.itemId == R.id.setting) {
             findNavController().navigate(R.id.settingFragment)
         }
         return true

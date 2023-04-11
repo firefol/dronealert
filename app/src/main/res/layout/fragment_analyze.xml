@@ -5,7 +5,7 @@
     android:id="@+id/frameLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".ui.analyze.AnalyzeFragment" >
+    tools:context=".ui.analyze.AnalyzeFragment">
 
 
     <LinearLayout
@@ -19,15 +19,20 @@
 
         <com.jjoe64.graphview.GraphView
             android:id="@+id/graph1"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
+            android:layout_width="match_parent"
+            android:layout_height="247dp" />
+
+        <com.jjoe64.graphview.GraphView
+            android:id="@+id/graph2"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
 
     </LinearLayout>
 
     <LinearLayout
         android:id="@+id/linearLayout2"
         android:layout_width="0dp"
-        android:layout_height="400dp"
+        android:layout_height="500dp"
         android:layout_marginTop="10dp"
         android:orientation="horizontal"
         app:layout_constraintEnd_toEndOf="parent"
@@ -35,10 +40,26 @@
         app:layout_constraintTop_toBottomOf="@id/linearLayout">
 
         <ImageView
-            android:id="@+id/imageView"
-            android:layout_width="0dp"
+            android:id="@+id/imageView1"
+            android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_weight="1" />
+            android:layout_weight="1"
+            android:adjustViewBounds="true"
+            android:paddingLeft="5dp"
+            android:paddingRight="5dp"
+            android:scaleType="centerCrop"
+            app:srcCompat="@drawable/fone_graph" />
+
+        <ImageView
+            android:id="@+id/imageView2"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:adjustViewBounds="false"
+            android:paddingLeft="5dp"
+            android:paddingRight="5dp"
+            android:scaleType="centerCrop"
+            app:srcCompat="@drawable/fone_graph" />
     </LinearLayout>
 
 

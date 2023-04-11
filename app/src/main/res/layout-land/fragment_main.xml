@@ -45,7 +45,7 @@
         android:id="@+id/textView"
         android:layout_width="71dp"
         android:layout_height="40dp"
-        android:text="Шаг в МГц"
+        android:text="Шаг в КГц"
         app:layout_constraintBottom_toTopOf="@+id/linearlistlayout"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.43"

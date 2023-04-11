@@ -8,8 +8,8 @@
 
     <LinearLayout
         android:id="@+id/itemLinearLayout"
-        android:layout_width="269dp"
-        android:layout_height="62dp"
+        android:layout_width="351dp"
+        android:layout_height="79dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
