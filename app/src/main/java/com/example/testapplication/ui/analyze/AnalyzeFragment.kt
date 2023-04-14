@@ -1,33 +1,46 @@
 package com.example.testapplication.ui.analyze
 
+import android.Manifest.permission.READ_EXTERNAL_STORAGE
+import android.Manifest.permission.WRITE_EXTERNAL_STORAGE
 import android.annotation.SuppressLint
-import android.graphics.Color
+import android.content.ContentValues
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.net.Uri
 import android.os.Build
+import android.os.Build.VERSION.SDK_INT
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
+import android.os.Environment
+import android.provider.MediaStore
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.View.GONE
 import android.view.ViewGroup
+import android.widget.Toast
+import androidx.annotation.Nullable
 import androidx.annotation.RequiresApi
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
-import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import com.example.testapplication.R
 import com.example.testapplication.databinding.FragmentAnalyzeBinding
 import com.jjoe64.graphview.series.DataPoint
 import com.jjoe64.graphview.series.LineGraphSeries
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import java.time.LocalTime
+import java.io.File
+import java.io.FileOutputStream
+import java.io.OutputStream
 
 
 class AnalyzeFragment : Fragment() {
 
     private lateinit var binding: FragmentAnalyzeBinding
     private val analyzeViewModel: AnalyzeViewModel by activityViewModels()
+
 
 
     override fun onCreateView(
@@ -43,8 +56,6 @@ class AnalyzeFragment : Fragment() {
     @SuppressLint("ResourceAsColor")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        println(binding.linearLayout.layoutParams.height)
-        println(binding.graph1.layoutParams.height)
         binding.graph1.viewport.setMinX((analyzeViewModel.starList[0] / 1000000L).toDouble())
         binding.graph1.viewport.setMaxX((analyzeViewModel.stopList[0]/ 1000000L).toDouble())
         binding.graph1.viewport.isXAxisBoundsManual = true
@@ -53,6 +64,7 @@ class AnalyzeFragment : Fragment() {
         binding.graph1.viewport.isYAxisBoundsManual = true
         if (analyzeViewModel.starList.size == 1){
             binding.graph2.visibility = GONE
+            binding.imageView2.visibility = GONE
         } else {
             binding.graph2.viewport.setMinX((analyzeViewModel.starList[1] / 1000000L).toDouble())
             binding.graph2.viewport.setMaxX((analyzeViewModel.stopList[1] / 1000000L).toDouble())
@@ -107,7 +119,6 @@ class AnalyzeFragment : Fragment() {
                 }
             }
         }
-        binding.imageView1.viewTreeObserver.addOnWindowFocusChangeListener {  }
         analyzeViewModel.getLiveDataSeriesObserver2().observe(viewLifecycleOwner) {
             /*for (i in it){
                 binding.graph2.addSeries(i)
@@ -124,17 +135,100 @@ class AnalyzeFragment : Fragment() {
                 }
             }
         }
-        val width = binding.imageView1.width
         analyzeViewModel.startScan()
         analyzeViewModel.read()
-        //analyzeViewModel.waterfallScan()
+        binding.button2.setOnClickListener {
+            val bitmap = getScreenShotFromView(binding.linearLayout2)
+            if (bitmap != null) {
+                saveMediaToStorage(bitmap)
+            }
+            /*val boolean = checkPermission()
+            if (!boolean) {
+                ActivityCompat.requestPermissions(
+                    requireActivity(),
+                    arrayOf(READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE),
+                    1
+                )
+            }
+            else {
+                val bitmap = getScreenShotFromView(binding.linearLayout2)
+                if (bitmap != null) {
+                    saveMediaToStorage(bitmap)
+                }
+
+            }*/
+        }
         binding.button.setOnClickListener {
             findNavController().navigate(R.id.mainFragment)
         }
     }
 
-    override fun onResume() {
-        super.onResume()
+    private fun checkPermission(): Boolean {
+        return if (SDK_INT >= Build.VERSION_CODES.R) {
+            Environment.isExternalStorageManager()
+        } else {
+            val result =
+                ContextCompat.checkSelfPermission(requireContext(), READ_EXTERNAL_STORAGE)
+            val result1 =
+                ContextCompat.checkSelfPermission(requireContext(), WRITE_EXTERNAL_STORAGE)
+            result == PackageManager.PERMISSION_GRANTED && result1 == PackageManager.PERMISSION_GRANTED
+        }
+    }
 
+    private fun getScreenShotFromView(v: View): Bitmap? {
+        // create a bitmap object
+        var screenshot: Bitmap? = null
+        try {
+            screenshot = Bitmap.createBitmap(v.measuredWidth, v.measuredHeight, Bitmap.Config.ARGB_8888)
+            // Now draw this bitmap on a canvas
+            val canvas = Canvas(screenshot)
+            v.draw(canvas)
+        } catch (e: Exception) {
+            Log.e("GFG", "Failed to capture screenshot because:" + e.message)
+        }
+        // return the bitmap
+        return screenshot
+    }
+
+    private fun saveMediaToStorage(bitmap: Bitmap) {
+        // Generating a file name
+        val filename = "${System.currentTimeMillis()}.png"
+
+        // Output stream
+        var fos: OutputStream? = null
+
+        // For devices running android >= Q
+        if (SDK_INT >= Build.VERSION_CODES.Q) {
+            // getting the contentResolver
+            requireContext().contentResolver?.also { resolver ->
+
+                // Content resolver will process the contentvalues
+                val contentValues = ContentValues().apply {
+
+                    // putting file information in content values
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                    put(MediaStore.MediaColumns.MIME_TYPE, "image/jpg")
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES)
+                }
+
+                // Inserting the contentValues to
+                // contentResolver and getting the Uri
+                val imageUri: Uri? = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+
+                // Opening an outputstream with the Uri that we got
+                fos = imageUri?.let { resolver.openOutputStream(it) }
+            }
+        } else {
+            // These for devices running on android < Q
+            val imagesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
+            val image = File(imagesDir, filename)
+            fos = FileOutputStream(image)
+        }
+
+        fos?.use {
+            // Finally writing the bitmap to the output stream that we opened
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+            Toast.makeText(requireContext() , "Captured View and saved to Gallery" , Toast.LENGTH_SHORT).show()
+        }
     }
 }

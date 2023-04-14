@@ -2,6 +2,8 @@ package com.example.testapplication.ui.main
 
 import android.annotation.SuppressLint
 import android.app.PendingIntent
+import android.app.PendingIntent.FLAG_IMMUTABLE
+import android.app.PendingIntent.FLAG_UPDATE_CURRENT
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -9,6 +11,7 @@ import android.content.IntentFilter
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbDeviceConnection
 import android.hardware.usb.UsbManager
+import android.os.Build
 import android.os.Bundle
 import android.view.*
 import android.widget.EditText
@@ -126,12 +129,13 @@ class MainFragment : Fragment() {
             usbDevices.forEach { entry ->
                 device = entry.value
                 val deviceVendorId = device!!.vendorId
+                val flags = FLAG_UPDATE_CURRENT or FLAG_IMMUTABLE
                 //Toast.makeText(requireContext(), deviceVendorId.toString(), Toast.LENGTH_LONG).show()
                 val intent = PendingIntent.getBroadcast(
                     requireContext(),
                     0,
                     Intent(ACTION_USB_PERMISSION),
-                    0
+                    flags
                 )
                 usbManager.requestPermission(device, intent)
                 keep = false
@@ -153,7 +157,7 @@ class MainFragment : Fragment() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action!! == ACTION_USB_PERMISSION) {
                 val granted: Boolean =
-                    intent.extras!!.getBoolean(UsbManager.EXTRA_PERMISSION_GRANTED)
+                    intent.getBooleanExtra((UsbManager.EXTRA_PERMISSION_GRANTED),true)
                 if (granted) {
                     connection = usbManager.openDevice(device)
                     serial = UsbSerialDevice.createUsbSerialDevice(device, connection)

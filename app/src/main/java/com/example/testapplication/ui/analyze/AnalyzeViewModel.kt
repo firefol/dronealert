@@ -3,6 +3,7 @@ package com.example.testapplication.ui.analyze
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.os.Build
+import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -14,7 +15,6 @@ import com.felhr.usbserial.UsbSerialDevice
 import com.felhr.usbserial.UsbSerialInterface.UsbReadCallback
 import com.jjoe64.graphview.series.DataPoint
 import kotlinx.coroutines.*
-
 
 class AnalyzeViewModel : ViewModel() {
 
@@ -32,7 +32,6 @@ class AnalyzeViewModel : ViewModel() {
     private var _messageIndex = 0
     private val _message = ByteArray(2048)
     var check = true
-
 
     companion object {
         private const val _commandPattern = "scn %1\$d %2\$d %3\$d %4\$d %5\$d \r\n"
@@ -77,6 +76,7 @@ class AnalyzeViewModel : ViewModel() {
     }
 
 
+    @RequiresApi(Build.VERSION_CODES.O)
     fun startScan() {
         val job = viewModelScope.launch(Dispatchers.IO) {
             while (check) {
@@ -114,23 +114,40 @@ class AnalyzeViewModel : ViewModel() {
                     0 // command id (can be a random integer value)
                 )
                 serialVM?.write(command.toByteArray())
-                delay(200L)
+                delay(100L)
             }
         }
         job.start()
     }
-
-    /*@RequiresApi(Build.VERSION_CODES.O)
-    @OptIn(DelicateCoroutinesApi::class)
-    fun waterfallScan() {
-        val job = viewModelScope.launch(newSingleThreadContext("Custom Thread")) {
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun startScan1() {
+        val job = viewModelScope.launch(Dispatchers.Default) {
             while (check) {
-                qwe()
-                delay(500L)
+                _start = starList[1]
+                _stop = stopList[1]
+                //= 2400000000L // 2400 MHz
+                //= 2500000000L // 2499 MHz
+                //_step = 500000L //  500 KHz
+                _attenuation = 0 //    0 dB
+                val attenuation =
+                    BASE_ATTENUATION_CALCULATION_LEVEL * ATTENUATION_ACCURACY_COEFFICIENT + _attenuation * ATTENUATION_ACCURACY_COEFFICIENT
+                _lastPointId = 0
+                _pointShift = 0
+                listCoordinates.clear()
+                val command = String.format(
+                    _commandPattern,
+                    _start,
+                    _stop,
+                    _step,
+                    attenuation,
+                    0 // command id (can be a random integer value)
+                )
+                serialVM?.write(command.toByteArray())
+                delay(300L)
             }
         }
         job.start()
-    }*/
+    }
 
     @RequiresApi(Build.VERSION_CODES.O)
     private val mCallback = UsbReadCallback {
@@ -168,8 +185,34 @@ class AnalyzeViewModel : ViewModel() {
 
     @RequiresApi(Build.VERSION_CODES.O)
     fun read() {
-        val buffer = serialVM?.read(mCallback)
-        println(buffer)
+        serialVM?.read {
+                val buffer = it
+                if (buffer == null) {
+                    return@read
+                }
+                for (charData in buffer) {
+                    if (_messageIndex >= 1 && _message[_messageIndex - 1].toInt() == 13 && charData.toInt() == 10) {
+                        //if (_streamReceiver != null) {
+                        val dst = ByteArray(_messageIndex - 1)
+                        System.arraycopy(_message, 0, dst, 0, _messageIndex - 1)
+                        processDeviceResponse(dst)
+                        //}
+                        for (j in 0 until _messageIndex) {
+                            _message[j] = 0
+                        }
+                        _messageIndex = 0
+                    } else {
+                        if (_messageIndex < _message.size) {
+                            _message[_messageIndex++] = charData
+                        } else {
+                            for (j in 0 until _messageIndex) {
+                                _message[j] = 0
+                            }
+                            _messageIndex = 0
+                        }
+                    }
+                }
+            }
     }
 
     fun processMessage(message: ByteArray) {
@@ -267,7 +310,7 @@ class AnalyzeViewModel : ViewModel() {
     private fun addListsSeries(coord: MutableList<List<DataPoint>>) {
         val width = (((_stop - _start) / 1000000L).toDouble() / (_step.toDouble() / (1000000L).toDouble()))
         val bitmap = Bitmap.createBitmap(width.toInt()+1,100, Bitmap.Config.ARGB_8888)
-        bitmap.eraseColor(Color.argb((255 - 99).toFloat(), 0F, 0F, 0F))
+        bitmap.eraseColor(Color.rgb(30, 30, 30))
         val listSeries = mutableListOf<Bitmap>()
         val list = mutableListOf<List<Bitmap>>()
         for (i in 0 until coord.size) {
@@ -279,10 +322,13 @@ class AnalyzeViewModel : ViewModel() {
                 if (coord[i][j].x == coord[i][j + 1].x)
                     continue
                 else {
+                    val color = 255 + coord[i][j].y.toInt()
+                    val colorForPixel = color(color)
+                    //println(" $colorForPixel")
                     bitmap.setPixel(
                         x,
                         i,
-                        Color.argb(((255 + coord[i][j].y.toInt()).toFloat()), 0F, 0F, 0F)
+                        Color.rgb( colorForPixel, colorForPixel, colorForPixel)
                     )
                     listSeries.add(bitmap)
                     x++
@@ -308,10 +354,21 @@ class AnalyzeViewModel : ViewModel() {
     }
 
 
-    private fun color(avgAmplitude: Double): Int {
-        return when (avgAmplitude) {
-            in -75.0..0.00 -> R.color.purple_700
-            else -> R.color.white
+    private fun color(color: Int):Int {
+        return when(color) {
+            in 200 .. 255 -> 255
+            in 0 ..170 -> 30
+            else -> color
         }
+    }
+
+    private fun densityColor(color: Int): Int {
+        //println("$color ")
+        val k = 225 / 40
+        val x = color - 140
+        val _color = x * k
+        return if (x<30) 30
+        else if (_color >= 255) 255
+        else _color
     }
 }
