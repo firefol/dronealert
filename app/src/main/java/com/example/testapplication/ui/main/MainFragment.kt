@@ -2,8 +2,7 @@ package com.example.testapplication.ui.main
 
 import android.annotation.SuppressLint
 import android.app.PendingIntent
-import android.app.PendingIntent.FLAG_IMMUTABLE
-import android.app.PendingIntent.FLAG_UPDATE_CURRENT
+import android.app.PendingIntent.FLAG_MUTABLE
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -11,7 +10,6 @@ import android.content.IntentFilter
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbDeviceConnection
 import android.hardware.usb.UsbManager
-import android.os.Build
 import android.os.Bundle
 import android.view.*
 import android.widget.EditText
@@ -41,10 +39,14 @@ class MainFragment : Fragment() {
     var device: UsbDevice? = null
     var serial: UsbSerialDevice? = null
     var connection: UsbDeviceConnection? = null
-    private val counter = 2
     private var allEds: MutableList<View>? = null
 
     val ACTION_USB_PERMISSION = "permission"
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        retainInstance = true
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -69,24 +71,51 @@ class MainFragment : Fragment() {
             filter,
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
+
+        binding.toolbar.setOnMenuItemClickListener {
+            when (it.itemId) {
+                R.id.setting -> {
+                    // Navigate to settings screen.
+                    findNavController().navigate(R.id.settingFragment)
+                    true
+                }
+                else -> false
+            }
+        }
         binding.connectButton.setOnClickListener {
-            if (serial != null) {
+            if (analyzeViewModel.serialVM != null) {
                 //val test = binding.linearlistlayout[0]
+                analyzeViewModel.starList.clear()
+                analyzeViewModel.stopList.clear()
+                analyzeViewModel.graphCounter = binding.linearlistlayout.size
                 for (i in binding.linearlistlayout.indices){
                 analyzeViewModel.starList.add(binding.linearlistlayout[i].findViewById<EditText>(R.id.editTextNumber).text.toString().toLong() * 1000000L)
                 analyzeViewModel.stopList.add(binding.linearlistlayout[i].findViewById<EditText>(R.id.editTextNumber2).text.toString().toLong() * 1000000L)
                 analyzeViewModel._step = (binding.editTextNumber3.text.toString().toLong() * 1000L)
                     }
-                analyzeViewModel.serialVM = serial
+                analyzeViewModel.coord1.clear()
+                analyzeViewModel.coord2.clear()
+                analyzeViewModel.listCoordinates.clear()
                 findNavController().navigate(R.id.analyzeFragment)
             }
         }
         allEds = mutableListOf()
-        for (i in 1..counter) {
+        for (i in 0 until analyzeViewModel.graphCounter) {
             val viewItems = layoutInflater.inflate(R.layout.view_item, null, false)
             allEds!!.add(viewItems)
             binding.linearlistlayout.addView(viewItems)
+            val editTextMin = binding.linearlistlayout[i].findViewById<EditText>(R.id.editTextNumber)
+            val editTextMax = binding.linearlistlayout[i].findViewById<EditText>(R.id.editTextNumber2)
+            if (analyzeViewModel.starList.isEmpty())
+                editTextMin.setText("2400")
+            else editTextMin.setText((analyzeViewModel.starList[i] / 1000000).toString())
+            if (analyzeViewModel.stopList.isEmpty())
+                editTextMax.setText("2500")
+            else editTextMax.setText((analyzeViewModel.stopList[i] / 1000000).toString())
             clickView(viewItems)
+        }
+        if (!(usbManager.deviceList.isNotEmpty() && analyzeViewModel.checkConnect)){
+            starUsbConnecting()
         }
     }
 
@@ -106,7 +135,7 @@ class MainFragment : Fragment() {
             }
         }
         imageButtonAdd.setOnClickListener {
-            if (allEds!!.size == counter) return@setOnClickListener
+            if (allEds!!.size == analyzeViewModel.maxGraphCounter) return@setOnClickListener
             else {
                 try {
                     //binding.linearlistlayout.removeView(view)
@@ -129,7 +158,8 @@ class MainFragment : Fragment() {
             usbDevices.forEach { entry ->
                 device = entry.value
                 val deviceVendorId = device!!.vendorId
-                val flags = FLAG_UPDATE_CURRENT or FLAG_IMMUTABLE
+                val flags =  FLAG_MUTABLE
+                val context = requireContext()
                 //Toast.makeText(requireContext(), deviceVendorId.toString(), Toast.LENGTH_LONG).show()
                 val intent = PendingIntent.getBroadcast(
                     requireContext(),
@@ -157,8 +187,9 @@ class MainFragment : Fragment() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action!! == ACTION_USB_PERMISSION) {
                 val granted: Boolean =
-                    intent.getBooleanExtra((UsbManager.EXTRA_PERMISSION_GRANTED),true)
+                    intent.extras!!.getBoolean((UsbManager.EXTRA_PERMISSION_GRANTED))
                 if (granted) {
+                    analyzeViewModel.checkConnect = true
                     connection = usbManager.openDevice(device)
                     serial = UsbSerialDevice.createUsbSerialDevice(device, connection)
                     if (serial != null) {
@@ -168,6 +199,7 @@ class MainFragment : Fragment() {
                             serial!!.setStopBits(UsbSerialInterface.STOP_BITS_1)
                             serial!!.setParity(UsbSerialInterface.PARITY_NONE)
                             serial!!.setFlowControl(UsbSerialInterface.FLOW_CONTROL_OFF)
+                            analyzeViewModel.serialVM = serial
                         } else {
                             //Toast.makeText(context, "port not open", Toast.LENGTH_LONG).show()
                             serial!!.open()
@@ -175,6 +207,7 @@ class MainFragment : Fragment() {
                             serial!!.setDataBits(UsbSerialInterface.DATA_BITS_8)
                             serial!!.setParity(UsbSerialInterface.PARITY_ODD)
                             serial!!.setFlowControl(UsbSerialInterface.FLOW_CONTROL_OFF)
+                            analyzeViewModel.serialVM = serial
 
                         }
                     } else {
@@ -190,17 +223,5 @@ class MainFragment : Fragment() {
             }
         }
 
-    }
-
-    override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {
-
-        super.onCreateOptionsMenu(menu, inflater)
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == R.id.setting) {
-            findNavController().navigate(R.id.settingFragment)
-        }
-        return true
     }
 }

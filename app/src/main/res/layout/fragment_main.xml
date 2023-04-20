@@ -26,11 +26,11 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.534"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/linearlistlayout"
+        app:layout_constraintTop_toBottomOf="@+id/scrollview"
         app:layout_constraintVertical_bias="0.586" />
 
-    <LinearLayout
-        android:id="@+id/linearlistlayout"
+    <ScrollView
+        android:id="@+id/scrollview"
         android:layout_width="405dp"
         android:layout_height="248dp"
         android:orientation="vertical"
@@ -39,7 +39,22 @@
         app:layout_constraintHorizontal_bias="0.533"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/toolbar"
-        app:layout_constraintVertical_bias="0.401" />
+        app:layout_constraintVertical_bias="0.401">
+
+        <LinearLayout
+            android:id="@+id/linearlistlayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.533"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/toolbar"
+            app:layout_constraintVertical_bias="0.401" />
+    </ScrollView>
+
+
 
     <TextView
         android:id="@+id/textView"
@@ -47,7 +62,7 @@
         android:layout_height="40dp"
         android:gravity="center"
         android:text="Шаг в КГц"
-        app:layout_constraintBottom_toTopOf="@+id/linearlistlayout"
+        app:layout_constraintBottom_toTopOf="@+id/scrollview"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.43"
         app:layout_constraintStart_toStartOf="parent"
@@ -61,10 +76,10 @@
         android:ems="10"
         android:inputType="number"
         android:text="1000"
-        app:layout_constraintBottom_toTopOf="@+id/linearlistlayout"
+        app:layout_constraintBottom_toTopOf="@+id/scrollview"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.561"
+        app:layout_constraintHorizontal_bias="0.613"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/toolbar"
-        app:layout_constraintVertical_bias="0.783" />
+        app:layout_constraintVertical_bias="0.786" />
 </androidx.constraintlayout.widget.ConstraintLayout>

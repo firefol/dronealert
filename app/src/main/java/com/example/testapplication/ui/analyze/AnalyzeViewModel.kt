@@ -3,18 +3,22 @@ package com.example.testapplication.ui.analyze
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.os.Build
-import android.util.Log
+import android.os.Environment
 import androidx.annotation.RequiresApi
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.testapplication.R
 import com.example.testapplication.utils.IStreamReceiver
 import com.felhr.usbserial.UsbSerialDevice
 import com.felhr.usbserial.UsbSerialInterface.UsbReadCallback
 import com.jjoe64.graphview.series.DataPoint
 import kotlinx.coroutines.*
+import java.io.File
+import java.io.FileOutputStream
+
+
+
 
 class AnalyzeViewModel : ViewModel() {
 
@@ -24,6 +28,9 @@ class AnalyzeViewModel : ViewModel() {
     var starList = mutableListOf<Long>()
     var stopList = mutableListOf<Long>()
     var request = 0
+    var graphCounter = 1
+    val maxGraphCounter = 5
+    var checkConnect = false
     private var _attenuation: Long = 0
     private var _pointIndex = 0
     private var _pointShift = 0
@@ -32,6 +39,7 @@ class AnalyzeViewModel : ViewModel() {
     private var _messageIndex = 0
     private val _message = ByteArray(2048)
     var check = true
+    var recordCheck = false
 
     companion object {
         private const val _commandPattern = "scn %1\$d %2\$d %3\$d %4\$d %5\$d \r\n"
@@ -57,6 +65,7 @@ class AnalyzeViewModel : ViewModel() {
     var listCoordinates = mutableListOf<DataPoint>()
     var coord1 = mutableListOf<List<DataPoint>>()
     var coord2 = mutableListOf<List<DataPoint>>()
+    var recordList = mutableListOf<List<DataPoint>>()
     private var liveDataSeries1: MutableLiveData<List<List<Bitmap>>> =
         MutableLiveData()
     private var liveDataSeries2: MutableLiveData<List<List<Bitmap>>> =
@@ -257,10 +266,16 @@ class AnalyzeViewModel : ViewModel() {
             if (list.size == 301 && _step == 500000L) {
                 if (list[0].x == (starList[0] / 1000000L).toDouble()){
                     coord1.add(0, list)
+                    if (recordCheck) {
+                        recordList.add(0,list)
+                    }
                     liveDataCoordinates.postValue(list)
                     qwe(coord1)
                     onCommandComplete()
                 } else {
+                    if (recordCheck) {
+                        recordList.add(0,list)
+                    }
                     coord2.add(0, list)
                     liveDataCoordinates.postValue(list)
                     qwe(coord2)
@@ -268,11 +283,17 @@ class AnalyzeViewModel : ViewModel() {
                 }
             } else if (list.size == 201 && _step == 1000000L) {
                 if (list[0].x == (starList[0] / 1000000L).toDouble()){
+                    if (recordCheck) {
+                        recordList.add(0,list)
+                    }
                     coord1.add(0, list)
                     liveDataCoordinates.postValue(list)
                     qwe(coord1)
                     onCommandComplete()
                 } else {
+                    if (recordCheck) {
+                        recordList.add(0,list)
+                    }
                     coord2.add(0, list)
                     liveDataCoordinates.postValue(list)
                     qwe(coord2)
@@ -323,7 +344,7 @@ class AnalyzeViewModel : ViewModel() {
                     continue
                 else {
                     val color = 255 + coord[i][j].y.toInt()
-                    val colorForPixel = color(color)
+                    val colorForPixel = densityColor(color)
                     //println(" $colorForPixel")
                     bitmap.setPixel(
                         x,
@@ -353,6 +374,30 @@ class AnalyzeViewModel : ViewModel() {
         }
     }
 
+   fun recordToFile(text:String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val file = File(path.toString() + "/" + text + "${System.currentTimeMillis()}.txt")
+            file.createNewFile()
+            val fos = FileOutputStream(file).bufferedWriter()
+            for (i in 0 until recordList.size) {
+                for (j in 0 until recordList[i].size) {
+                    if (j == recordList[i].lastIndex) {
+                        break
+                    }
+                    if (recordList[i][j].x == recordList[i][j + 1].x)
+                        continue
+                    else {
+                        fos.write(recordList[i][j].y.toString() + ";")
+                    }
+                }
+                fos.newLine()
+            }
+            fos.close()
+            recordList.clear()
+        }
+    }
+
 
     private fun color(color: Int):Int {
         return when(color) {
@@ -363,11 +408,10 @@ class AnalyzeViewModel : ViewModel() {
     }
 
     private fun densityColor(color: Int): Int {
-        //println("$color ")
-        val k = 225 / 40
-        val x = color - 140
+        val k = 255 / 40
+        val x = color - 160
         val _color = x * k
-        return if (x<30) 30
+        return if (_color<30) 30
         else if (_color >= 255) 255
         else _color
     }

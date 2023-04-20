@@ -30,11 +30,13 @@
             android:layout_weight="1"
             android:visibility="visible" />
 
+
+
     </LinearLayout>
 
     <LinearLayout
         android:id="@+id/linearLayout2"
-        android:layout_width="0dp"
+        android:layout_width="wrap_content"
         android:layout_height="400dp"
         android:layout_marginTop="10dp"
         android:orientation="horizontal"
@@ -44,10 +46,10 @@
 
         <ImageView
             android:id="@+id/imageView1"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_width="170dp"
+            android:layout_height="170dp"
             android:layout_weight="1"
-            android:adjustViewBounds="true"
+            android:adjustViewBounds="false"
             android:paddingLeft="5dp"
             android:paddingRight="5dp"
             android:scaleType="fitXY"
@@ -55,39 +57,52 @@
 
         <ImageView
             android:id="@+id/imageView2"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_width="170dp"
+            android:layout_height="170dp"
             android:layout_weight="1"
             android:adjustViewBounds="false"
             android:paddingLeft="5dp"
             android:paddingRight="5dp"
             android:scaleType="fitXY"
+            android:visibility="visible"
             app:srcCompat="@drawable/fone_graph" />
+
     </LinearLayout>
 
 
     <Button
-        android:id="@+id/button"
+        android:id="@+id/backButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="11dp"
         android:text="Завершить"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.39"
+        app:layout_constraintHorizontal_bias="0.248"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/linearLayout2"
-        app:layout_constraintVertical_bias="0.333" />
+        app:layout_constraintVertical_bias="0.411" />
 
     <Button
-        android:id="@+id/button2"
+        android:id="@+id/screenButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="фото"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.185"
-        app:layout_constraintStart_toEndOf="@+id/button"
+        app:layout_constraintHorizontal_bias="0.078"
+        app:layout_constraintStart_toEndOf="@+id/backButton"
         app:layout_constraintTop_toBottomOf="@+id/linearLayout2"
-        app:layout_constraintVertical_bias="0.35" />
+        app:layout_constraintVertical_bias="0.411" />
+
+    <Button
+        android:id="@+id/RecordButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="запись"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.475"
+        app:layout_constraintStart_toEndOf="@+id/backButton"
+        app:layout_constraintTop_toBottomOf="@+id/linearLayout2"
+        app:layout_constraintVertical_bias="0.411" />
 </androidx.constraintlayout.widget.ConstraintLayout>
