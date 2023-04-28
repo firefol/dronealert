@@ -5,6 +5,7 @@ import android.Manifest.permission.WRITE_EXTERNAL_STORAGE
 import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.content.ContentValues
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -14,6 +15,7 @@ import android.os.Build
 import android.os.Build.VERSION.SDK_INT
 import android.os.Bundle
 import android.os.Environment
+import android.os.Vibrator
 import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Log
@@ -25,11 +27,13 @@ import android.widget.EditText
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.toBitmap
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.navigation.fragment.findNavController
 import com.example.testapplication.R
 import com.example.testapplication.databinding.FragmentAnalyzeBinding
+import com.example.testapplication.ml.Model
 import com.jjoe64.graphview.series.DataPoint
 import com.jjoe64.graphview.series.LineGraphSeries
 import java.io.File
@@ -57,6 +61,8 @@ class AnalyzeFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         analyzeViewModel.check = true
+        val model = Model.newInstance(requireContext())
+        val vibration = activity?.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
         binding.graph1.viewport.setMinX((analyzeViewModel.starList[0] / 1000000L).toDouble())
         binding.graph1.viewport.setMaxX((analyzeViewModel.stopList[0]/ 1000000L).toDouble())
         binding.graph1.viewport.isXAxisBoundsManual = true
@@ -121,6 +127,8 @@ class AnalyzeFragment : Fragment() {
 
                 }
             }
+            val bitmap = binding.imageView1.drawable.toBitmap(340, 340, Bitmap.Config.ARGB_8888)
+            analyzeViewModel.scanImage(model,bitmap, vibration)
         }
         analyzeViewModel.getLiveDataSeriesObserver2().observe(viewLifecycleOwner) {
             /*for (i in it){

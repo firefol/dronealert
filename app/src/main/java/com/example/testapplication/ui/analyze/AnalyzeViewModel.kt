@@ -4,20 +4,26 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.os.Build
 import android.os.Environment
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.testapplication.ml.Model
 import com.example.testapplication.utils.IStreamReceiver
 import com.felhr.usbserial.UsbSerialDevice
 import com.felhr.usbserial.UsbSerialInterface.UsbReadCallback
 import com.jjoe64.graphview.series.DataPoint
 import kotlinx.coroutines.*
+import org.tensorflow.lite.DataType
+import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
 import java.io.File
 import java.io.FileOutputStream
-
-
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 
 class AnalyzeViewModel : ViewModel() {
@@ -123,7 +129,7 @@ class AnalyzeViewModel : ViewModel() {
                     0 // command id (can be a random integer value)
                 )
                 serialVM?.write(command.toByteArray())
-                delay(100L)
+                delay(200L)
             }
         }
         job.start()
@@ -299,6 +305,22 @@ class AnalyzeViewModel : ViewModel() {
                     qwe(coord2)
                     onCommandComplete()
                 }
+            } else if (list.size == 501 && _step == 250000L) {
+                if (recordCheck) {
+                    recordList.add(0,list)
+                }
+                coord1.add(0, list)
+                liveDataCoordinates.postValue(list)
+                qwe(coord1)
+                onCommandComplete()
+            } else if (list.size == 426 && _step == 250000L) {
+                if (recordCheck) {
+                    recordList.add(0,list)
+                }
+                coord1.add(0, list)
+                liveDataCoordinates.postValue(list)
+                qwe(coord1)
+                onCommandComplete()
             }
         }
     }
@@ -414,5 +436,61 @@ class AnalyzeViewModel : ViewModel() {
         return if (_color<30) 30
         else if (_color >= 255) 255
         else _color
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun scanImage(model: Model, bitmap: Bitmap, vibration:Vibrator) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val image = Bitmap.createScaledBitmap(bitmap, 64, 64, true)
+            val inputFeature0 =
+                TensorBuffer.createFixedSize(intArrayOf(1, 64, 64, 3), DataType.FLOAT32)
+            val byteBuffer = ByteBuffer.allocateDirect(4 * 64 * 64 * 3)
+            byteBuffer.order(ByteOrder.nativeOrder())
+            val intValues = IntArray(64 * 64)
+            image.getPixels(intValues, 0, image.width, 0, 0, image.width, image.height)
+            var pixel = 0
+            for (i in 0 until 64) {
+                for (j in 0 until 64) {
+                    val `val` = intValues[pixel] // RGB
+                    byteBuffer.putFloat(((`val` shr 16 and 0xFF).toFloat()))
+                    byteBuffer.putFloat(((`val` shr 8 and 0xFF).toFloat()))
+                    byteBuffer.putFloat(((`val` and 0xFF).toFloat()))
+                    pixel++
+                }
+            }
+
+            inputFeature0.loadBuffer(byteBuffer)
+
+// Runs model inference and gets result.
+            val outputs = model.process(inputFeature0)
+            val outputFeature0 = outputs.outputFeature0AsTensorBuffer
+
+            val confidences: FloatArray = outputFeature0.floatArray
+            // find the index of the class with the biggest confidence.
+            // find the index of the class with the biggest confidence.
+            var maxPos = 0
+            var maxConfidence = 0f
+            for (i in confidences.indices) {
+                if (confidences[i] > maxConfidence) {
+                    maxConfidence = confidences[i]
+                    maxPos = i
+                }
+            }
+            val classes = arrayOf("Drone", "Non Drone")
+            println(classes[maxPos])
+            Log.i("Dron", classes[maxPos])
+            if (classes[maxPos]=="Drone"){
+                vibration.vibrate(
+                    VibrationEffect.createOneShot(
+                        100L,
+                        VibrationEffect.DEFAULT_AMPLITUDE
+                    )
+                )
+                /*val path = Uri.parse(resources.assets.open("alarmBuzzer.mp3").toString())
+                val player: MediaPlayer = MediaPlayer.create(requireContext(),path)
+                player.isLooping = true
+                player.start()*/
+            }
+        }
     }
 }
