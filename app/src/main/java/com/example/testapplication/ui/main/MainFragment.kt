@@ -28,6 +28,7 @@ import com.example.testapplication.databinding.FragmentMainBinding
 import com.example.testapplication.ui.analyze.AnalyzeViewModel
 import com.felhr.usbserial.UsbSerialDevice
 import com.felhr.usbserial.UsbSerialInterface
+import com.jjoe64.graphview.series.DataPoint
 import java.util.*
 
 class MainFragment : Fragment() {
@@ -75,7 +76,6 @@ class MainFragment : Fragment() {
         binding.toolbar.setOnMenuItemClickListener {
             when (it.itemId) {
                 R.id.setting -> {
-                    // Navigate to settings screen.
                     findNavController().navigate(R.id.settingFragment)
                     true
                 }
@@ -84,17 +84,16 @@ class MainFragment : Fragment() {
         }
         binding.connectButton.setOnClickListener {
             if (analyzeViewModel.serialVM != null) {
-                //val test = binding.linearlistlayout[0]
                 analyzeViewModel.starList.clear()
                 analyzeViewModel.stopList.clear()
                 analyzeViewModel.graphCounter = binding.linearlistlayout.size
-                for (i in binding.linearlistlayout.indices){
-                analyzeViewModel.starList.add(binding.linearlistlayout[i].findViewById<EditText>(R.id.editTextNumber).text.toString().toLong() * 1000000L)
-                analyzeViewModel.stopList.add(binding.linearlistlayout[i].findViewById<EditText>(R.id.editTextNumber2).text.toString().toLong() * 1000000L)
-                analyzeViewModel._step = (binding.editTextNumber3.text.toString().toLong() * 1000L)
-                    }
-                analyzeViewModel.coord1.clear()
                 analyzeViewModel.coord2.clear()
+                for (i in binding.linearlistlayout.indices) {
+                    analyzeViewModel.starList.add(binding.linearlistlayout[i].findViewById<EditText>(R.id.editTextNumber).text.toString().toLong() * 1000000L)
+                    analyzeViewModel.stopList.add(binding.linearlistlayout[i].findViewById<EditText>(R.id.editTextNumber2).text.toString().toLong() * 1000000L)
+                    analyzeViewModel._step = (binding.editTextNumber3.text.toString().toLong() * 1000L)
+                    analyzeViewModel.coord2.add(mutableListOf())
+                    }
                 analyzeViewModel.listCoordinates.clear()
                 findNavController().navigate(R.id.analyzeFragment)
             }

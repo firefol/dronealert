@@ -2,6 +2,7 @@ package com.example.testapplication.ui.analyze
 
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.media.MediaPlayer
 import android.os.Build
 import android.os.Environment
 import android.os.VibrationEffect
@@ -15,13 +16,13 @@ import androidx.lifecycle.viewModelScope
 import com.example.testapplication.ml.Model
 import com.example.testapplication.utils.IStreamReceiver
 import com.felhr.usbserial.UsbSerialDevice
-import com.felhr.usbserial.UsbSerialInterface.UsbReadCallback
 import com.jjoe64.graphview.series.DataPoint
 import kotlinx.coroutines.*
 import org.tensorflow.lite.DataType
 import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
 import java.io.File
 import java.io.FileOutputStream
+import java.lang.Exception
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -46,6 +47,7 @@ class AnalyzeViewModel : ViewModel() {
     private val _message = ByteArray(2048)
     var check = true
     var recordCheck = false
+    var soundType = 0
 
     companion object {
         private const val _commandPattern = "scn %1\$d %2\$d %3\$d %4\$d %5\$d \r\n"
@@ -69,8 +71,7 @@ class AnalyzeViewModel : ViewModel() {
     var serialVM: UsbSerialDevice? = null
     private var liveDataCoordinates: MutableLiveData<List<DataPoint>> = MutableLiveData()
     var listCoordinates = mutableListOf<DataPoint>()
-    var coord1 = mutableListOf<List<DataPoint>>()
-    var coord2 = mutableListOf<List<DataPoint>>()
+    var coord2 = mutableListOf<MutableList<List<DataPoint>>>()
     var recordList = mutableListOf<List<DataPoint>>()
     private var liveDataSeries1: MutableLiveData<List<List<Bitmap>>> =
         MutableLiveData()
@@ -93,24 +94,14 @@ class AnalyzeViewModel : ViewModel() {
 
     @RequiresApi(Build.VERSION_CODES.O)
     fun startScan() {
-        val job = viewModelScope.launch(Dispatchers.IO) {
+        val job =
+            viewModelScope.launch(Dispatchers.IO) {
+                //delay(100L)
             while (check) {
-                if (request == 0) {
-                    _start = starList[request]
-                    _stop = stopList[request]
-                    request = 1
-                } else {
-                    if (starList.size == 1 && stopList.size == 1)
-                    {
-                        request = 0
-                        _start = starList[request]
-                        _stop = stopList[request]
-                    } else {
-                        _start = starList[request]
-                        _stop = stopList[request]
-                        request = 0
-                    }
-                }
+                if (request == graphCounter)
+                    request = 0
+                _start = starList[request]
+                _stop = stopList[request]
                 //= 2400000000L // 2400 MHz
                 //= 2500000000L // 2499 MHz
                 //_step = 500000L //  500 KHz
@@ -129,73 +120,10 @@ class AnalyzeViewModel : ViewModel() {
                     0 // command id (can be a random integer value)
                 )
                 serialVM?.write(command.toByteArray())
-                delay(200L)
+                delay(150L)
             }
         }
         job.start()
-    }
-    @RequiresApi(Build.VERSION_CODES.O)
-    fun startScan1() {
-        val job = viewModelScope.launch(Dispatchers.Default) {
-            while (check) {
-                _start = starList[1]
-                _stop = stopList[1]
-                //= 2400000000L // 2400 MHz
-                //= 2500000000L // 2499 MHz
-                //_step = 500000L //  500 KHz
-                _attenuation = 0 //    0 dB
-                val attenuation =
-                    BASE_ATTENUATION_CALCULATION_LEVEL * ATTENUATION_ACCURACY_COEFFICIENT + _attenuation * ATTENUATION_ACCURACY_COEFFICIENT
-                _lastPointId = 0
-                _pointShift = 0
-                listCoordinates.clear()
-                val command = String.format(
-                    _commandPattern,
-                    _start,
-                    _stop,
-                    _step,
-                    attenuation,
-                    0 // command id (can be a random integer value)
-                )
-                serialVM?.write(command.toByteArray())
-                delay(300L)
-            }
-        }
-        job.start()
-    }
-
-    @RequiresApi(Build.VERSION_CODES.O)
-    private val mCallback = UsbReadCallback {
-        val buffer = it
-        if (buffer == null) {
-            return@UsbReadCallback
-        }
-        for (charData in buffer) {
-            if (_messageIndex >= 1 && _message[_messageIndex - 1].toInt() == 13 && charData.toInt() == 10) {
-                //if (_streamReceiver != null) {
-                val dst = ByteArray(_messageIndex - 1)
-                System.arraycopy(_message, 0, dst, 0, _messageIndex - 1)
-                processDeviceResponse(dst)
-                //}
-                for (j in 0 until _messageIndex) {
-                    _message[j] = 0
-                }
-                _messageIndex = 0
-            } else {
-                if (_messageIndex < _message.size) {
-                    _message[_messageIndex++] = charData
-                } else {
-                    for (j in 0 until _messageIndex) {
-                        _message[j] = 0
-                    }
-                    _messageIndex = 0
-                }
-            }
-        }
-    }
-
-    fun initStreamReceiver(streamReceiver: IStreamReceiver?) {
-        _streamReceiver = streamReceiver
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
@@ -270,56 +198,61 @@ class AnalyzeViewModel : ViewModel() {
         } else if (readMessage.contentEquals("complete")) {
             val list = listCoordinates.sortedBy { it.x }
             if (list.size == 301 && _step == 500000L) {
-                if (list[0].x == (starList[0] / 1000000L).toDouble()){
-                    coord1.add(0, list)
-                    if (recordCheck) {
-                        recordList.add(0,list)
+                try {
+                    if (list[0].x == (starList[request] / 1000000L).toDouble()) {
+                        coord2[request].add(0, list)
+                        if (recordCheck) {
+                            recordList.add(0, list)
+                        }
+                        liveDataCoordinates.postValue(list)
+                        val listCoordinates = coord2[request]
+                        convertToBitmap(listCoordinates)
+                        onCommandComplete()
                     }
-                    liveDataCoordinates.postValue(list)
-                    qwe(coord1)
-                    onCommandComplete()
-                } else {
-                    if (recordCheck) {
-                        recordList.add(0,list)
-                    }
-                    coord2.add(0, list)
-                    liveDataCoordinates.postValue(list)
-                    qwe(coord2)
-                    onCommandComplete()
+                } catch (e:Exception){
+                    println(e)
                 }
             } else if (list.size == 201 && _step == 1000000L) {
-                if (list[0].x == (starList[0] / 1000000L).toDouble()){
-                    if (recordCheck) {
-                        recordList.add(0,list)
+                try {
+                    if (list[0].x == (starList[request] / 1000000L).toDouble()) {
+                        if (recordCheck) {
+                            recordList.add(0, list)
+                        }
+                        coord2[request].add(0, list)
+                        liveDataCoordinates.postValue(list)
+                        val listCoordinates = coord2[request]
+                        convertToBitmap(listCoordinates)
+                        onCommandComplete()
                     }
-                    coord1.add(0, list)
-                    liveDataCoordinates.postValue(list)
-                    qwe(coord1)
-                    onCommandComplete()
-                } else {
-                    if (recordCheck) {
-                        recordList.add(0,list)
-                    }
-                    coord2.add(0, list)
-                    liveDataCoordinates.postValue(list)
-                    qwe(coord2)
-                    onCommandComplete()
+                } catch (e:Exception) {
+                    println(e)
                 }
             } else if (list.size == 501 && _step == 250000L) {
                 if (recordCheck) {
                     recordList.add(0,list)
                 }
-                coord1.add(0, list)
+                coord2[request].add(0,list)
                 liveDataCoordinates.postValue(list)
-                qwe(coord1)
+                val listCoordinates = coord2[request]
+                convertToBitmap(listCoordinates)
                 onCommandComplete()
             } else if (list.size == 426 && _step == 250000L) {
                 if (recordCheck) {
                     recordList.add(0,list)
                 }
-                coord1.add(0, list)
+                coord2[request].add(0,list)
                 liveDataCoordinates.postValue(list)
-                qwe(coord1)
+                val listCoordinates = coord2[request]
+                convertToBitmap(listCoordinates)
+                onCommandComplete()
+            } else if (list.size == 1101 && _step == 100000L) {
+                if (recordCheck) {
+                    recordList.add(0,list)
+                }
+                coord2[request].add(0,list)
+                liveDataCoordinates.postValue(list)
+                val listCoordinates = coord2[request]
+                convertToBitmap(listCoordinates)
                 onCommandComplete()
             }
         }
@@ -336,13 +269,14 @@ class AnalyzeViewModel : ViewModel() {
     private fun onCommandComplete() {
         if (serialVM != null) {
             //serialVM!!.close()
+            request++
         }
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
-    fun qwe(coord: MutableList<List<DataPoint>>) {
+    fun convertToBitmap(coord: MutableList<List<DataPoint>>) {
         if (coord.size == 100) {
-            coord.removeLast()
+            coord2[request].removeLast()
         }
         if (coord.isNotEmpty()) {
             addListsSeries(coord)
@@ -367,7 +301,6 @@ class AnalyzeViewModel : ViewModel() {
                 else {
                     val color = 255 + coord[i][j].y.toInt()
                     val colorForPixel = densityColor(color)
-                    //println(" $colorForPixel")
                     bitmap.setPixel(
                         x,
                         i,
@@ -379,8 +312,7 @@ class AnalyzeViewModel : ViewModel() {
             }
             list.add(0, listSeries)
         }
-        if (coord[0][0].x == (starList[0] / 1000000L).toDouble()) liveDataSeries1.postValue(list)
-        else liveDataSeries2.postValue(list)
+        if (coord[0][0].x == (starList[request] / 1000000L).toDouble()) liveDataSeries1.postValue(list)
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
@@ -421,14 +353,6 @@ class AnalyzeViewModel : ViewModel() {
     }
 
 
-    private fun color(color: Int):Int {
-        return when(color) {
-            in 200 .. 255 -> 255
-            in 0 ..170 -> 30
-            else -> color
-        }
-    }
-
     private fun densityColor(color: Int): Int {
         val k = 255 / 40
         val x = color - 160
@@ -439,7 +363,7 @@ class AnalyzeViewModel : ViewModel() {
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
-    fun scanImage(model: Model, bitmap: Bitmap, vibration:Vibrator) {
+    fun scanImage(mediaPlayer: MediaPlayer, model: Model, bitmap: Bitmap, vibration:Vibrator) {
         viewModelScope.launch(Dispatchers.IO) {
             val image = Bitmap.createScaledBitmap(bitmap, 64, 64, true)
             val inputFeature0 =
@@ -477,15 +401,19 @@ class AnalyzeViewModel : ViewModel() {
                 }
             }
             val classes = arrayOf("Drone", "Non Drone")
-            println(classes[maxPos])
             Log.i("Dron", classes[maxPos])
             if (classes[maxPos]=="Drone"){
+                if (soundType == 0) {
                 vibration.vibrate(
                     VibrationEffect.createOneShot(
                         100L,
                         VibrationEffect.DEFAULT_AMPLITUDE
                     )
                 )
+                } else {
+                    if (mediaPlayer.isPlaying) println("уже играет")
+                        else mediaPlayer.start()
+                }
                 /*val path = Uri.parse(resources.assets.open("alarmBuzzer.mp3").toString())
                 val player: MediaPlayer = MediaPlayer.create(requireContext(),path)
                 player.isLooping = true

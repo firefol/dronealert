@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Build
 import android.os.Build.VERSION.SDK_INT
@@ -21,19 +22,22 @@ import android.provider.Settings
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
-import android.view.View.GONE
 import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
+import androidx.core.view.get
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.navigation.fragment.findNavController
 import com.example.testapplication.R
 import com.example.testapplication.databinding.FragmentAnalyzeBinding
 import com.example.testapplication.ml.Model
+import com.example.testapplication.utils.DroneAlertSettings
+import com.jjoe64.graphview.GraphView
 import com.jjoe64.graphview.series.DataPoint
 import com.jjoe64.graphview.series.LineGraphSeries
 import java.io.File
@@ -45,6 +49,9 @@ class AnalyzeFragment : Fragment() {
 
     private lateinit var binding: FragmentAnalyzeBinding
     private val analyzeViewModel: AnalyzeViewModel by activityViewModels()
+    var graphCounter = 0
+    var imageCounter = 0
+    private lateinit var mediaPlayer:MediaPlayer
 
 
     override fun onCreateView(
@@ -57,28 +64,29 @@ class AnalyzeFragment : Fragment() {
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
-    @SuppressLint("ResourceAsColor")
+    @SuppressLint("ResourceAsColor", "InflateParams")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        val setting = DroneAlertSettings(requireContext())
+        analyzeViewModel.soundType = setting.connectionType
         analyzeViewModel.check = true
+        mediaPlayer = if (analyzeViewModel.soundType == 1) MediaPlayer.create(context, R.raw.alarmbuzzer)
+        else MediaPlayer.create(context, R.raw.sirena)
         val model = Model.newInstance(requireContext())
         val vibration = activity?.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-        binding.graph1.viewport.setMinX((analyzeViewModel.starList[0] / 1000000L).toDouble())
-        binding.graph1.viewport.setMaxX((analyzeViewModel.stopList[0]/ 1000000L).toDouble())
-        binding.graph1.viewport.isXAxisBoundsManual = true
-        binding.graph1.viewport.setMinY(-100.00)
-        binding.graph1.viewport.setMaxY(0.00)
-        binding.graph1.viewport.isYAxisBoundsManual = true
-        if (analyzeViewModel.starList.size == 1){
-            binding.graph2.visibility = GONE
-            binding.imageView2.visibility = GONE
-        } else {
-            binding.graph2.viewport.setMinX((analyzeViewModel.starList[1] / 1000000L).toDouble())
-            binding.graph2.viewport.setMaxX((analyzeViewModel.stopList[1] / 1000000L).toDouble())
-            binding.graph2.viewport.isXAxisBoundsManual = true
-            binding.graph2.viewport.setMinY(-100.00)
-            binding.graph2.viewport.setMaxY(0.00)
-            binding.graph2.viewport.isYAxisBoundsManual = true
+        for (i in 0 until analyzeViewModel.graphCounter) {
+            val graphItems = layoutInflater.inflate(R.layout.graph_item, null, false)
+            binding.linearLayout.addView(graphItems)
+            val graphView = binding.linearLayout[i].findViewById<GraphView>(R.id.graph123)
+            graphView.layoutParams.height = 1000 / analyzeViewModel.graphCounter
+            graphView.viewport.setMinX((analyzeViewModel.starList[i] / 1000000L).toDouble())
+            graphView.viewport.setMaxX((analyzeViewModel.stopList[i] / 1000000L).toDouble())
+            graphView.viewport.isXAxisBoundsManual = true
+            graphView.viewport.setMinY(-100.00)
+            graphView.viewport.setMaxY(0.00)
+            graphView.viewport.isYAxisBoundsManual = true
+            val imageViewItem = layoutInflater.inflate(R.layout.imageview_item, null, false)
+            binding.gridLayout.addView(imageViewItem)
         }
         /*binding.graph2.viewport.setMinX(2400.00)
         binding.graph2.viewport.setMaxX(2500.00)
@@ -90,28 +98,36 @@ class AnalyzeFragment : Fragment() {
         binding.graph2.gridLabelRenderer.isHorizontalLabelsVisible = false
         binding.graph2.gridLabelRenderer.setHumanRounding(false)*/
         analyzeViewModel.getLiveDataObserver().observe(viewLifecycleOwner) { list ->
-
-             if (list[0].x == (analyzeViewModel.starList[0] / 1000000L).toDouble() ) {
-                 binding.graph1.removeAllSeries()
+            if (graphCounter == analyzeViewModel.graphCounter) graphCounter = 0
+            val graphView = binding.linearLayout[graphCounter].findViewById<GraphView>(R.id.graph123)
+             if (list[0].x == (analyzeViewModel.starList[graphCounter] / 1000000L).toDouble() ) {
+                 //binding.graph1.removeAllSeries()
                  //if (list.size == 301) {
+                 graphView.removeAllSeries()
                  val series: LineGraphSeries<DataPoint> = LineGraphSeries(
                      list.toTypedArray()
                  )
                  series.thickness = 3
-                 binding.graph1.addSeries(series)
+                 //binding.graph1.addSeries(series)
+                 graphView.addSeries(series)
+                 graphCounter++
              } else {
-                 binding.graph2.removeAllSeries()
+                 graphView.removeAllSeries()
+                 //binding.graph2.removeAllSeries()
                  //if (list.size == 301) {
                  val series: LineGraphSeries<DataPoint> = LineGraphSeries(
                      list.toTypedArray()
                  )
                  series.thickness = 3
-                 binding.graph2.addSeries(series)
+                 graphView.addSeries(series)
+                 //binding.graph2.addSeries(series)
              }
             //} else
             //println("количество${list.size}")
         }
         analyzeViewModel.getLiveDataSeriesObserver1().observe(viewLifecycleOwner) {
+            if (imageCounter == analyzeViewModel.graphCounter) imageCounter = 0
+            val imageViewItem = binding.gridLayout[imageCounter].findViewById<ImageView>(R.id.imageView)
             /*for (i in it){
                 binding.graph2.addSeries(i)
             }
@@ -123,33 +139,19 @@ class AnalyzeFragment : Fragment() {
                 binding.graph2.series.removeLast()*/
             for (i in it.indices){
                 for (j in it.indices) {
-                    binding.imageView1.setImageBitmap(it[i][j])
+                    imageViewItem.setImageBitmap(it[i][j])
 
                 }
             }
-            val bitmap = binding.imageView1.drawable.toBitmap(340, 340, Bitmap.Config.ARGB_8888)
-            analyzeViewModel.scanImage(model,bitmap, vibration)
-        }
-        analyzeViewModel.getLiveDataSeriesObserver2().observe(viewLifecycleOwner) {
-            /*for (i in it){
-                binding.graph2.addSeries(i)
-            }
-            binding.graph2.viewport.setMinY(analyzeViewModel.yCount - 100)
-            binding.graph2.viewport.setMaxY(analyzeViewModel.yCount)
-            binding.graph2.viewport.isYAxisBoundsManual = true
-            analyzeViewModel.yCount++
-            if (binding.graph2.series.size > 100)
-                binding.graph2.series.removeLast()*/
-            for (i in it.indices){
-                for (j in it.indices) {
-                    binding.imageView2.setImageBitmap(it[i][j])
-                }
-            }
+            val bitmap = imageViewItem.drawable.toBitmap(340, 340, Bitmap.Config.ARGB_8888)
+            analyzeViewModel.scanImage(mediaPlayer, model, bitmap, vibration)
+            imageCounter++
         }
         analyzeViewModel.startScan()
         analyzeViewModel.read()
         binding.screenButton.setOnClickListener {
-            val bitmap = getScreenShotFromView(binding.imageView1)
+            val imageViewItem = binding.gridLayout[0].findViewById<ImageView>(R.id.imageView)
+            val bitmap = getScreenShotFromView(imageViewItem)
             if (bitmap != null) {
                 saveMediaToStorage(bitmap)
             }
@@ -274,5 +276,6 @@ class AnalyzeFragment : Fragment() {
     override fun onDestroy() {
         super.onDestroy()
         analyzeViewModel.check = false
+        analyzeViewModel.request = 0
     }
 }
