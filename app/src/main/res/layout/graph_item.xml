@@ -10,7 +10,7 @@
     <com.jjoe64.graphview.GraphView
         android:id="@+id/graph123"
         android:layout_width="wrap_content"
-        android:layout_height="100dp"
+        android:layout_height="90dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />

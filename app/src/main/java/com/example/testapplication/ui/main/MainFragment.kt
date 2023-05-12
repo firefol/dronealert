@@ -83,7 +83,7 @@ class MainFragment : Fragment() {
             }
         }
         binding.connectButton.setOnClickListener {
-            if (analyzeViewModel.serialVM != null) {
+            //if (analyzeViewModel.serialVM != null) {
                 analyzeViewModel.starList.clear()
                 analyzeViewModel.stopList.clear()
                 analyzeViewModel.graphCounter = binding.linearlistlayout.size
@@ -96,7 +96,7 @@ class MainFragment : Fragment() {
                     }
                 analyzeViewModel.listCoordinates.clear()
                 findNavController().navigate(R.id.analyzeFragment)
-            }
+            //}
         }
         allEds = mutableListOf()
         for (i in 0 until analyzeViewModel.graphCounter) {

@@ -19,12 +19,14 @@ import android.os.Environment
 import android.os.Vibrator
 import android.provider.MediaStore
 import android.provider.Settings
+import android.util.DisplayMetrics
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.ImageView
+import android.widget.TextView
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
@@ -51,6 +53,7 @@ class AnalyzeFragment : Fragment() {
     private val analyzeViewModel: AnalyzeViewModel by activityViewModels()
     var graphCounter = 0
     var imageCounter = 0
+    var droneStatusCounter = 0
     private lateinit var mediaPlayer:MediaPlayer
 
 
@@ -64,7 +67,7 @@ class AnalyzeFragment : Fragment() {
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
-    @SuppressLint("ResourceAsColor", "InflateParams")
+    @SuppressLint("ResourceAsColor", "InflateParams", "MissingInflatedId")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         val setting = DroneAlertSettings(requireContext())
@@ -78,14 +81,18 @@ class AnalyzeFragment : Fragment() {
             val graphItems = layoutInflater.inflate(R.layout.graph_item, null, false)
             binding.linearLayout.addView(graphItems)
             val graphView = binding.linearLayout[i].findViewById<GraphView>(R.id.graph123)
-            graphView.layoutParams.height = 1000 / analyzeViewModel.graphCounter
+            val metrics = resources.displayMetrics.density
+            graphView.layoutParams.height = ((450 * metrics) / analyzeViewModel.graphCounter).toInt()
             graphView.viewport.setMinX((analyzeViewModel.starList[i] / 1000000L).toDouble())
             graphView.viewport.setMaxX((analyzeViewModel.stopList[i] / 1000000L).toDouble())
             graphView.viewport.isXAxisBoundsManual = true
             graphView.viewport.setMinY(-100.00)
-            graphView.viewport.setMaxY(0.00)
+            graphView.viewport.setMaxY(-20.00)
             graphView.viewport.isYAxisBoundsManual = true
             val imageViewItem = layoutInflater.inflate(R.layout.imageview_item, null, false)
+            imageViewItem.findViewById<TextView>(R.id.textViewDiapason).text =
+                (analyzeViewModel.starList[i] / 1000000L).toString() + " - " +
+                        (analyzeViewModel.stopList[i] / 1000000L).toString()
             binding.gridLayout.addView(imageViewItem)
         }
         /*binding.graph2.viewport.setMinX(2400.00)
@@ -146,6 +153,13 @@ class AnalyzeFragment : Fragment() {
             val bitmap = imageViewItem.drawable.toBitmap(340, 340, Bitmap.Config.ARGB_8888)
             analyzeViewModel.scanImage(mediaPlayer, model, bitmap, vibration)
             imageCounter++
+        }
+        analyzeViewModel.getLiveDataDroneStatus().observe(viewLifecycleOwner) {
+            if (droneStatusCounter == analyzeViewModel.graphCounter) droneStatusCounter = 0
+            val imageViewItem = binding.gridLayout[droneStatusCounter].findViewById<ImageView>(R.id.imageView)
+            if (it == "Drone") imageViewItem.setBackgroundResource(R.drawable.image_background)
+            else imageViewItem.setBackgroundResource(0)
+            droneStatusCounter++
         }
         analyzeViewModel.startScan()
         analyzeViewModel.read()
@@ -275,6 +289,7 @@ class AnalyzeFragment : Fragment() {
 
     override fun onDestroy() {
         super.onDestroy()
+        if (mediaPlayer.isPlaying) mediaPlayer.stop()
         analyzeViewModel.check = false
         analyzeViewModel.request = 0
     }

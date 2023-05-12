@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">testApplication</string>
+    <string name="app_name">Drone Alert</string>
     <string name="setting_fragment">Hello blank fragment</string>
 </resources>

@@ -42,7 +42,6 @@ class AnalyzeViewModel : ViewModel() {
     private var _pointIndex = 0
     private var _pointShift = 0
     private var _lastPointId = 0
-    private var _streamReceiver: IStreamReceiver? = null
     private var _messageIndex = 0
     private val _message = ByteArray(2048)
     var check = true
@@ -77,6 +76,7 @@ class AnalyzeViewModel : ViewModel() {
         MutableLiveData()
     private var liveDataSeries2: MutableLiveData<List<List<Bitmap>>> =
         MutableLiveData()
+    private var liveDataDroneStatus: MutableLiveData<String> = MutableLiveData()
 
 
     fun getLiveDataObserver(): LiveData<List<DataPoint>> {
@@ -87,8 +87,8 @@ class AnalyzeViewModel : ViewModel() {
         return liveDataSeries1
     }
 
-    fun getLiveDataSeriesObserver2(): LiveData<List<List<Bitmap>>> {
-        return liveDataSeries2
+    fun getLiveDataDroneStatus(): LiveData<String> {
+        return liveDataDroneStatus
     }
 
 
@@ -197,7 +197,7 @@ class AnalyzeViewModel : ViewModel() {
             _pointIndex = 0
         } else if (readMessage.contentEquals("complete")) {
             val list = listCoordinates.sortedBy { it.x }
-            if (list.size == 301 && _step == 500000L) {
+            if (list.size == (((stopList[request] - starList[request])/ _step).toInt() + (stopList[request] - starList[request]).toInt() + 1) && _step == 500000L) {
                 try {
                     if (list[0].x == (starList[request] / 1000000L).toDouble()) {
                         coord2[request].add(0, list)
@@ -212,7 +212,7 @@ class AnalyzeViewModel : ViewModel() {
                 } catch (e:Exception){
                     println(e)
                 }
-            } else if (list.size == 201 && _step == 1000000L) {
+            } else if (list.size == (((stopList[request] - starList[request])/ _step).toInt() + (stopList[request] - starList[request]).toInt() + 1) && _step == 1000000L) {
                 try {
                     if (list[0].x == (starList[request] / 1000000L).toDouble()) {
                         if (recordCheck) {
@@ -227,7 +227,8 @@ class AnalyzeViewModel : ViewModel() {
                 } catch (e:Exception) {
                     println(e)
                 }
-            } else if (list.size == 501 && _step == 250000L) {
+            } /*else if (list.size == 501 && _step == 250000L) {
+                try {
                 if (recordCheck) {
                     recordList.add(0,list)
                 }
@@ -236,7 +237,11 @@ class AnalyzeViewModel : ViewModel() {
                 val listCoordinates = coord2[request]
                 convertToBitmap(listCoordinates)
                 onCommandComplete()
-            } else if (list.size == 426 && _step == 250000L) {
+                } catch (e:Exception) {
+                    println(e)
+                }
+            }*/ else if (list.size == (((stopList[request] - starList[request])/ _step).toInt() + (stopList[request] - starList[request]).toInt() + 1) && _step == 250000L) {
+                try {
                 if (recordCheck) {
                     recordList.add(0,list)
                 }
@@ -245,7 +250,11 @@ class AnalyzeViewModel : ViewModel() {
                 val listCoordinates = coord2[request]
                 convertToBitmap(listCoordinates)
                 onCommandComplete()
-            } else if (list.size == 1101 && _step == 100000L) {
+                } catch (e:Exception) {
+                    println(e)
+                }
+            } else if (list.size == (((stopList[request] - starList[request])/ _step).toInt() + (stopList[request] - starList[request]).toInt() + 1) && _step == 100000L) {
+                try {
                 if (recordCheck) {
                     recordList.add(0,list)
                 }
@@ -254,6 +263,9 @@ class AnalyzeViewModel : ViewModel() {
                 val listCoordinates = coord2[request]
                 convertToBitmap(listCoordinates)
                 onCommandComplete()
+                } catch (e:Exception) {
+                    println(e)
+                }
             }
         }
     }
@@ -402,6 +414,7 @@ class AnalyzeViewModel : ViewModel() {
             }
             val classes = arrayOf("Drone", "Non Drone")
             Log.i("Dron", classes[maxPos])
+            liveDataDroneStatus.postValue(classes[maxPos])
             if (classes[maxPos]=="Drone"){
                 if (soundType == 0) {
                 vibration.vibrate(
