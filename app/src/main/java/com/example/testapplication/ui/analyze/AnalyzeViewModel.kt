@@ -22,9 +22,10 @@ import org.tensorflow.lite.DataType
 import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
 import java.io.File
 import java.io.FileOutputStream
-import java.lang.Exception
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.time.LocalTime
+import kotlin.Exception
 
 
 class AnalyzeViewModel : ViewModel() {
@@ -36,8 +37,9 @@ class AnalyzeViewModel : ViewModel() {
     var stopList = mutableListOf<Long>()
     var request = 0
     var graphCounter = 1
-    val maxGraphCounter = 5
+    var maxGraphCounter = 5
     var checkConnect = false
+    var delay = 150L
     private var _attenuation: Long = 0
     private var _pointIndex = 0
     private var _pointShift = 0
@@ -65,6 +67,8 @@ class AnalyzeViewModel : ViewModel() {
         // amplitudeIntValue = 18600 => amplitude = ((80 * 10.0 - 18659)) / 10.0 = -108.59 dB
         private const val AMPLITUDE_ACCURACY_COEFFICIENT = 10.0 // one decimal place
         private const val _intermediateFrequency = 500000L
+        var startTime = 0L
+        var stopTime = 0L
     }
 
     var serialVM: UsbSerialDevice? = null
@@ -74,13 +78,15 @@ class AnalyzeViewModel : ViewModel() {
     var recordList = mutableListOf<List<DataPoint>>()
     private var liveDataSeries1: MutableLiveData<List<List<Bitmap>>> =
         MutableLiveData()
-    private var liveDataSeries2: MutableLiveData<List<List<Bitmap>>> =
-        MutableLiveData()
     private var liveDataDroneStatus: MutableLiveData<String> = MutableLiveData()
 
 
     fun getLiveDataObserver(): LiveData<List<DataPoint>> {
         return liveDataCoordinates
+    }
+
+    fun removeobservers() {
+        liveDataCoordinates.removeObserver {  }
     }
 
     fun getLiveDataSeriesObserver1(): LiveData<List<List<Bitmap>>> {
@@ -94,10 +100,10 @@ class AnalyzeViewModel : ViewModel() {
 
     @RequiresApi(Build.VERSION_CODES.O)
     fun startScan() {
-        val job =
-            viewModelScope.launch(Dispatchers.IO) {
+        val job = viewModelScope.launch(Dispatchers.IO) {
                 //delay(100L)
             while (check) {
+                startTime = System.currentTimeMillis()
                 if (request == graphCounter)
                     request = 0
                 _start = starList[request]
@@ -120,7 +126,7 @@ class AnalyzeViewModel : ViewModel() {
                     0 // command id (can be a random integer value)
                 )
                 serialVM?.write(command.toByteArray())
-                delay(150L)
+                delay(1000L)
             }
         }
         job.start()
@@ -197,7 +203,10 @@ class AnalyzeViewModel : ViewModel() {
             _pointIndex = 0
         } else if (readMessage.contentEquals("complete")) {
             val list = listCoordinates.sortedBy { it.x }
-            if (list.size == (((stopList[request] - starList[request])/ _step).toInt() + (stopList[request] - starList[request]).toInt() + 1) && _step == 500000L) {
+            try {
+            if (list.size == (((stopList[request] - starList[request]) / _step).toInt() +
+                        ((stopList[request] - starList[request]) / 1000000L).toInt() + 1) && _step == 500000L
+            ) {
                 try {
                     if (list[0].x == (starList[request] / 1000000L).toDouble()) {
                         coord2[request].add(0, list)
@@ -209,10 +218,12 @@ class AnalyzeViewModel : ViewModel() {
                         convertToBitmap(listCoordinates)
                         onCommandComplete()
                     }
-                } catch (e:Exception){
+                } catch (e: Exception) {
                     println(e)
                 }
-            } else if (list.size == (((stopList[request] - starList[request])/ _step).toInt() + (stopList[request] - starList[request]).toInt() + 1) && _step == 1000000L) {
+            } else if (list.size == (((stopList[request] - starList[request]) / _step).toInt() +
+                        ((stopList[request] - starList[request]) / 1000000L).toInt() + 1) && _step == 1000000L
+            ) {
                 try {
                     if (list[0].x == (starList[request] / 1000000L).toDouble()) {
                         if (recordCheck) {
@@ -224,7 +235,7 @@ class AnalyzeViewModel : ViewModel() {
                         convertToBitmap(listCoordinates)
                         onCommandComplete()
                     }
-                } catch (e:Exception) {
+                } catch (e: Exception) {
                     println(e)
                 }
             } /*else if (list.size == 501 && _step == 250000L) {
@@ -240,33 +251,40 @@ class AnalyzeViewModel : ViewModel() {
                 } catch (e:Exception) {
                     println(e)
                 }
-            }*/ else if (list.size == (((stopList[request] - starList[request])/ _step).toInt() + (stopList[request] - starList[request]).toInt() + 1) && _step == 250000L) {
+            }*/ else if (list.size == (((stopList[request] - starList[request]) / _step).toInt() +
+                        ((stopList[request] - starList[request]) / 1000000L).toInt() + 1) && _step == 250000L
+            ) {
                 try {
-                if (recordCheck) {
-                    recordList.add(0,list)
-                }
-                coord2[request].add(0,list)
-                liveDataCoordinates.postValue(list)
-                val listCoordinates = coord2[request]
-                convertToBitmap(listCoordinates)
-                onCommandComplete()
-                } catch (e:Exception) {
+                    if (recordCheck) {
+                        recordList.add(0, list)
+                    }
+                    coord2[request].add(0, list)
+                    liveDataCoordinates.postValue(list)
+                    val listCoordinates = coord2[request]
+                    convertToBitmap(listCoordinates)
+                    onCommandComplete()
+                } catch (e: Exception) {
                     println(e)
                 }
-            } else if (list.size == (((stopList[request] - starList[request])/ _step).toInt() + (stopList[request] - starList[request]).toInt() + 1) && _step == 100000L) {
+            } else if (list.size == (((stopList[request] - starList[request]) / _step).toInt() +
+                        ((stopList[request] - starList[request]) / 1000000L).toInt() + 1) && _step == 100000L
+            ) {
                 try {
-                if (recordCheck) {
-                    recordList.add(0,list)
-                }
-                coord2[request].add(0,list)
-                liveDataCoordinates.postValue(list)
-                val listCoordinates = coord2[request]
-                convertToBitmap(listCoordinates)
-                onCommandComplete()
-                } catch (e:Exception) {
+                    if (recordCheck) {
+                        recordList.add(0, list)
+                    }
+                    coord2[request].add(0, list)
+                    liveDataCoordinates.postValue(list)
+                    val listCoordinates = coord2[request]
+                    convertToBitmap(listCoordinates)
+                    onCommandComplete()
+                } catch (e: Exception) {
                     println(e)
                 }
             }
+        } catch (e:Exception) {
+            println(e)
+        }
         }
     }
 
@@ -282,6 +300,8 @@ class AnalyzeViewModel : ViewModel() {
         if (serialVM != null) {
             //serialVM!!.close()
             request++
+            stopTime = System.currentTimeMillis()
+            println(stopTime - startTime)
         }
     }
 
@@ -376,7 +396,7 @@ class AnalyzeViewModel : ViewModel() {
 
     @RequiresApi(Build.VERSION_CODES.O)
     fun scanImage(mediaPlayer: MediaPlayer, model: Model, bitmap: Bitmap, vibration:Vibrator) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.Default) {
             val image = Bitmap.createScaledBitmap(bitmap, 64, 64, true)
             val inputFeature0 =
                 TensorBuffer.createFixedSize(intArrayOf(1, 64, 64, 3), DataType.FLOAT32)

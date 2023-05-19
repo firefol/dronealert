@@ -12,6 +12,7 @@ import android.hardware.usb.UsbDeviceConnection
 import android.hardware.usb.UsbManager
 import android.os.Bundle
 import android.view.*
+import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.Toast
@@ -25,11 +26,13 @@ import androidx.fragment.app.activityViewModels
 import androidx.navigation.fragment.findNavController
 import com.example.testapplication.R
 import com.example.testapplication.databinding.FragmentMainBinding
+import com.example.testapplication.service.DroneAlertService
 import com.example.testapplication.ui.analyze.AnalyzeViewModel
+import com.example.testapplication.utils.DroneAlertSettings
 import com.felhr.usbserial.UsbSerialDevice
 import com.felhr.usbserial.UsbSerialInterface
-import com.jjoe64.graphview.series.DataPoint
 import java.util.*
+
 
 class MainFragment : Fragment() {
 
@@ -46,7 +49,7 @@ class MainFragment : Fragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        retainInstance = true
+        //retainInstance = true
     }
 
     override fun onCreateView(
@@ -60,19 +63,22 @@ class MainFragment : Fragment() {
     @SuppressLint("WrongConstant", "InflateParams", "SetTextI18n")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        val setting = DroneAlertSettings(requireContext())
         binding.toolbar.inflateMenu(R.menu.toolbar)
         usbManager = context?.getSystemService(Context.USB_SERVICE) as UsbManager
         val filter = IntentFilter()
         filter.addAction(ACTION_USB_PERMISSION)
         filter.addAction(UsbManager.ACTION_USB_ACCESSORY_ATTACHED)
         filter.addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
+        filter.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
         registerReceiver(
             requireContext(),
             brodcastReciever,
             filter,
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
-
+        //val intentBroadcast = Intent(requireContext(), DroneAlertService::class.java)
+        //ContextCompat.startForegroundService(requireContext(), intentBroadcast)
         binding.toolbar.setOnMenuItemClickListener {
             when (it.itemId) {
                 R.id.setting -> {
@@ -83,7 +89,13 @@ class MainFragment : Fragment() {
             }
         }
         binding.connectButton.setOnClickListener {
-            //if (analyzeViewModel.serialVM != null) {
+            val inputManager = requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            inputManager.hideSoftInputFromWindow(it.windowToken, 0)
+            //val intent = Intent()
+            //intent.action = DroneAlertService.SET_DATA
+            //intent.putExtra(DroneAlertService.STEP, 500000L)
+            //activity?.sendBroadcast(intent)
+            if (analyzeViewModel.serialVM != null) {
                 analyzeViewModel.starList.clear()
                 analyzeViewModel.stopList.clear()
                 analyzeViewModel.graphCounter = binding.linearlistlayout.size
@@ -91,14 +103,17 @@ class MainFragment : Fragment() {
                 for (i in binding.linearlistlayout.indices) {
                     analyzeViewModel.starList.add(binding.linearlistlayout[i].findViewById<EditText>(R.id.editTextNumber).text.toString().toLong() * 1000000L)
                     analyzeViewModel.stopList.add(binding.linearlistlayout[i].findViewById<EditText>(R.id.editTextNumber2).text.toString().toLong() * 1000000L)
-                    analyzeViewModel._step = (binding.editTextNumber3.text.toString().toLong() * 1000L)
                     analyzeViewModel.coord2.add(mutableListOf())
                     }
+                if (binding.editTextNumber3.text.toString().toInt() <= 250) analyzeViewModel.delay = 200L
+                analyzeViewModel._step = (binding.editTextNumber3.text.toString().toLong() * 1000L)
                 analyzeViewModel.listCoordinates.clear()
                 findNavController().navigate(R.id.analyzeFragment)
-            //}
+            }
         }
         allEds = mutableListOf()
+        val graphCounterVariants = requireContext().resources.getStringArray(R.array.counter_graph)
+        analyzeViewModel.maxGraphCounter = graphCounterVariants[setting.counterGraph].toInt()
         for (i in 0 until analyzeViewModel.graphCounter) {
             val viewItems = layoutInflater.inflate(R.layout.view_item, null, false)
             allEds!!.add(viewItems)
@@ -204,6 +219,7 @@ class MainFragment : Fragment() {
                             serial!!.open()
                             serial!!.setBaudRate(11520)
                             serial!!.setDataBits(UsbSerialInterface.DATA_BITS_8)
+                            serial!!.setStopBits(UsbSerialInterface.STOP_BITS_1)
                             serial!!.setParity(UsbSerialInterface.PARITY_ODD)
                             serial!!.setFlowControl(UsbSerialInterface.FLOW_CONTROL_OFF)
                             analyzeViewModel.serialVM = serial

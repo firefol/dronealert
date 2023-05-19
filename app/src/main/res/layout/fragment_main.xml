@@ -55,7 +55,6 @@
     </ScrollView>
 
 
-
     <TextView
         android:id="@+id/textView"
         android:layout_width="71dp"
@@ -63,23 +62,23 @@
         android:gravity="center"
         android:text="Шаг в КГц"
         app:layout_constraintBottom_toTopOf="@+id/scrollview"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.43"
+        app:layout_constraintEnd_toStartOf="@+id/editTextNumber3"
+        app:layout_constraintHorizontal_bias="0.91"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/toolbar"
-        app:layout_constraintVertical_bias="0.783" />
+        app:layout_constraintVertical_bias="0.789" />
 
     <EditText
         android:id="@+id/editTextNumber3"
-        android:layout_width="113dp"
+        android:layout_width="50dp"
         android:layout_height="40dp"
         android:ems="10"
         android:inputType="number"
         android:text="1000"
         app:layout_constraintBottom_toTopOf="@+id/scrollview"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.613"
+        app:layout_constraintHorizontal_bias="0.617"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/toolbar"
-        app:layout_constraintVertical_bias="0.786" />
+        app:layout_constraintVertical_bias="0.789" />
 </androidx.constraintlayout.widget.ConstraintLayout>

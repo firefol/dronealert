@@ -2,4 +2,6 @@
 <resources>
     <item name="infoVersion" type="id"/>
     <item name="settingsConectionType" type="id" />
+    <item name="settingsCounterGraph" type="id" />
+    <item name="service" type="id"/>
 </resources>

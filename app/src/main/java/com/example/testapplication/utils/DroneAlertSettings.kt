@@ -10,11 +10,12 @@ class DroneAlertSettings(context: Context) {
 
     private val prefs: SharedPreferences = context.getSharedPreferences(this.javaClass.simpleName, Context.MODE_PRIVATE)
 
-    var connectionType: Int by SharedPrefIntegerProperty(Bluetooth)
-
+    var connectionType: Int by SharedPrefIntegerProperty(soundType)
+    var counterGraph: Int by SharedPrefIntegerProperty(counter)
 
     companion object {
-        const val Bluetooth = 0
+        const val soundType = 0
+        const val counter = 0
     }
 
     /**

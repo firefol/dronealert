@@ -18,7 +18,7 @@ class SettingFragment : Fragment() {
 
     private lateinit var binding: FragmentSettingBinding
     private val viewAdapter: ViewAdapter?
-        get() = binding.typeSettingsView?.adapter as? ViewAdapter
+        get() = binding.typeSettingsView.adapter as? ViewAdapter
 
     lateinit var droneAlertSettings: DroneAlertSettings
 
@@ -61,15 +61,27 @@ class SettingFragment : Fragment() {
             isReadOnly = true
         )
 
-        binding.typeSettingsView?.adapter = viewAdapter
-        binding.typeSettingsView?.addItemDecoration(
+        viewAdapter += ViewAdapter.DataItem(
+            id = R.id.settingsCounterGraph,
+            name = "Количество графиков",
+            data = ViewAdapter.EnumEditData(
+                variants = requireContext().resources.getStringArray(R.array.counter_graph),
+                value = droneAlertSettings.counterGraph
+            )
+        )
+
+        binding.typeSettingsView.adapter = viewAdapter
+        binding.typeSettingsView.addItemDecoration(
             DividerItemDecoration(context, DividerItemDecoration.VERTICAL)
         )
     }
 
     override fun onPause() {
         super.onPause()
-        droneAlertSettings.connectionType = ((viewAdapter?.getItemById(R.id.settingsConectionType) as? ViewAdapter.DataItem)?.data as? ViewAdapter.EnumEditData)?.value ?: 0
+        droneAlertSettings.connectionType = ((viewAdapter?.getItemById(R.id.settingsConectionType)
+                as? ViewAdapter.DataItem)?.data as? ViewAdapter.EnumEditData)?.value ?: 0
+        droneAlertSettings.counterGraph = ((viewAdapter?.getItemById(R.id.settingsCounterGraph)
+                as? ViewAdapter.DataItem)?.data as? ViewAdapter.EnumEditData)?.value ?: 0
         //printerSettings.printerTemplate = viewAdapter?.getEnumValue(R.id.settingsPrinterConectionType) ?: 0
     }
 }

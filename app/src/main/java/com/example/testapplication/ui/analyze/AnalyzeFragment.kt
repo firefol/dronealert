@@ -8,6 +8,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.media.MediaPlayer
@@ -19,10 +20,10 @@ import android.os.Environment
 import android.os.Vibrator
 import android.provider.MediaStore
 import android.provider.Settings
-import android.util.DisplayMetrics
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
+import android.view.View.GONE
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.ImageView
@@ -45,6 +46,7 @@ import com.jjoe64.graphview.series.LineGraphSeries
 import java.io.File
 import java.io.FileOutputStream
 import java.io.OutputStream
+import kotlin.properties.Delegates
 
 
 class AnalyzeFragment : Fragment() {
@@ -67,28 +69,78 @@ class AnalyzeFragment : Fragment() {
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
-    @SuppressLint("ResourceAsColor", "InflateParams", "MissingInflatedId")
+    @SuppressLint("ResourceAsColor", "InflateParams", "MissingInflatedId", "CutPasteId")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         val setting = DroneAlertSettings(requireContext())
         analyzeViewModel.soundType = setting.connectionType
-        analyzeViewModel.check = true
+        binding.linearLayout.post {
+            if (analyzeViewModel.graphCounter > 6) {
+                binding.linearLayout.visibility = GONE
+            } else {
+                val height = binding.linearLayout.height
+                for (i in 0 until analyzeViewModel.graphCounter) {
+                    val graphItems = layoutInflater.inflate(R.layout.graph_item, null, false)
+                    binding.linearLayout.addView(graphItems)
+                    val graphView = binding.linearLayout[i].findViewById<GraphView>(R.id.graph123)
+                    //val metrics = resources.displayMetrics.density
+                    //graphView.layoutParams.height = ((450 * metrics) / analyzeViewModel.graphCounter).toInt()
+                    graphView.layoutParams.height = height /
+                            analyzeViewModel.graphCounter
+                    graphView.viewport.setMinX((analyzeViewModel.starList[i] / 1000000L).toDouble())
+                    graphView.viewport.setMaxX((analyzeViewModel.stopList[i] / 1000000L).toDouble())
+                    graphView.viewport.isXAxisBoundsManual = true
+                    graphView.viewport.setMinY(-100.00)
+                    graphView.viewport.setMaxY(-20.00)
+                    graphView.viewport.isYAxisBoundsManual = true
+                }
+                analyzeViewModel.getLiveDataObserver().observe(viewLifecycleOwner) { list ->
+                    if (graphCounter == analyzeViewModel.graphCounter) graphCounter = 0
+                    try {
+                        val graphView = binding.linearLayout[graphCounter].findViewById<GraphView>(R.id.graph123)
+                        if (list[0].x == (analyzeViewModel.starList[graphCounter] / 1000000L).toDouble()) {
+                            //binding.graph1.removeAllSeries()
+                            //if (list.size == 301) {
+                            graphView.removeAllSeries()
+                            val series: LineGraphSeries<DataPoint> = LineGraphSeries(
+                                list.toTypedArray()
+                            )
+                            series.thickness = 3
+                            //binding.graph1.addSeries(series)
+                            graphView.addSeries(series)
+                            graphCounter++
+                        } else {
+                            graphView.removeAllSeries()
+                            //binding.graph2.removeAllSeries()
+                            //if (list.size == 301) {
+                            val series: LineGraphSeries<DataPoint> = LineGraphSeries(
+                                list.toTypedArray()
+                            )
+                            series.thickness = 3
+                            graphView.addSeries(series)
+                            //binding.graph2.addSeries(series)
+                        }
+                        //} else
+                        //println("количество${list.size}")
+                    } catch (e:Exception) {
+                        println(e)
+                    }
+                }
+            }
+            analyzeViewModel.check = true
+            analyzeViewModel.startScan()
+            analyzeViewModel.read()
+        }
         mediaPlayer = if (analyzeViewModel.soundType == 1) MediaPlayer.create(context, R.raw.alarmbuzzer)
         else MediaPlayer.create(context, R.raw.sirena)
         val model = Model.newInstance(requireContext())
         val vibration = activity?.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        if (analyzeViewModel.graphCounter > 6) {
+            binding.linearLayout.visibility = GONE
+            binding.gridLayout.rowCount = 4
+        } else {
+        }
         for (i in 0 until analyzeViewModel.graphCounter) {
-            val graphItems = layoutInflater.inflate(R.layout.graph_item, null, false)
-            binding.linearLayout.addView(graphItems)
-            val graphView = binding.linearLayout[i].findViewById<GraphView>(R.id.graph123)
-            val metrics = resources.displayMetrics.density
-            graphView.layoutParams.height = ((450 * metrics) / analyzeViewModel.graphCounter).toInt()
-            graphView.viewport.setMinX((analyzeViewModel.starList[i] / 1000000L).toDouble())
-            graphView.viewport.setMaxX((analyzeViewModel.stopList[i] / 1000000L).toDouble())
-            graphView.viewport.isXAxisBoundsManual = true
-            graphView.viewport.setMinY(-100.00)
-            graphView.viewport.setMaxY(-20.00)
-            graphView.viewport.isYAxisBoundsManual = true
             val imageViewItem = layoutInflater.inflate(R.layout.imageview_item, null, false)
             imageViewItem.findViewById<TextView>(R.id.textViewDiapason).text =
                 (analyzeViewModel.starList[i] / 1000000L).toString() + " - " +
@@ -104,34 +156,6 @@ class AnalyzeFragment : Fragment() {
         binding.graph2.gridLabelRenderer.isVerticalLabelsVisible = false
         binding.graph2.gridLabelRenderer.isHorizontalLabelsVisible = false
         binding.graph2.gridLabelRenderer.setHumanRounding(false)*/
-        analyzeViewModel.getLiveDataObserver().observe(viewLifecycleOwner) { list ->
-            if (graphCounter == analyzeViewModel.graphCounter) graphCounter = 0
-            val graphView = binding.linearLayout[graphCounter].findViewById<GraphView>(R.id.graph123)
-             if (list[0].x == (analyzeViewModel.starList[graphCounter] / 1000000L).toDouble() ) {
-                 //binding.graph1.removeAllSeries()
-                 //if (list.size == 301) {
-                 graphView.removeAllSeries()
-                 val series: LineGraphSeries<DataPoint> = LineGraphSeries(
-                     list.toTypedArray()
-                 )
-                 series.thickness = 3
-                 //binding.graph1.addSeries(series)
-                 graphView.addSeries(series)
-                 graphCounter++
-             } else {
-                 graphView.removeAllSeries()
-                 //binding.graph2.removeAllSeries()
-                 //if (list.size == 301) {
-                 val series: LineGraphSeries<DataPoint> = LineGraphSeries(
-                     list.toTypedArray()
-                 )
-                 series.thickness = 3
-                 graphView.addSeries(series)
-                 //binding.graph2.addSeries(series)
-             }
-            //} else
-            //println("количество${list.size}")
-        }
         analyzeViewModel.getLiveDataSeriesObserver1().observe(viewLifecycleOwner) {
             if (imageCounter == analyzeViewModel.graphCounter) imageCounter = 0
             val imageViewItem = binding.gridLayout[imageCounter].findViewById<ImageView>(R.id.imageView)
@@ -161,8 +185,6 @@ class AnalyzeFragment : Fragment() {
             else imageViewItem.setBackgroundResource(0)
             droneStatusCounter++
         }
-        analyzeViewModel.startScan()
-        analyzeViewModel.read()
         binding.screenButton.setOnClickListener {
             val imageViewItem = binding.gridLayout[0].findViewById<ImageView>(R.id.imageView)
             val bitmap = getScreenShotFromView(imageViewItem)
@@ -214,6 +236,10 @@ class AnalyzeFragment : Fragment() {
         }
         binding.backButton.setOnClickListener {
             analyzeViewModel.check = false
+            analyzeViewModel.request = 0
+            graphCounter = 0
+            imageCounter = 0
+            droneStatusCounter = 0
             findNavController().navigate(R.id.mainFragment)
         }
     }
@@ -287,10 +313,13 @@ class AnalyzeFragment : Fragment() {
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
+    override fun onStop() {
+        super.onStop()
+        graphCounter = 0
+        imageCounter = 0
+        droneStatusCounter = 0
         if (mediaPlayer.isPlaying) mediaPlayer.stop()
-        analyzeViewModel.check = false
-        analyzeViewModel.request = 0
+        println("стоп")
+
     }
 }
