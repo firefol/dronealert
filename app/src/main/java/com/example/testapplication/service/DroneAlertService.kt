@@ -8,51 +8,81 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.graphics.Bitmap
+import android.graphics.Color
+import android.media.MediaPlayer
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.util.Log
+import android.widget.ImageView
+import androidx.annotation.RequiresApi
+import androidx.core.graphics.drawable.toBitmap
 import com.example.testapplication.R
+import com.example.testapplication.ml.Model
 import com.felhr.usbserial.UsbSerialDevice
+import com.jjoe64.graphview.series.DataPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.tensorflow.lite.DataType
+import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import kotlin.properties.Delegates
 
 class DroneAlertService: Service() {
 
     private var job: Job? = null
+    private var convertJob: Job? = null
+    lateinit var mediaPlayer:MediaPlayer
+    lateinit var model: Model
+    lateinit var vibration: Vibrator
     var _start: Long = 0
     var _stop: Long = 0
-    var _step: Long = 0
     var request = 0
     var graphCounter = 1
     var maxGraphCounter = 5
     var checkConnect = false
     var delay = 150L
+    var counter = 0
     private var _attenuation: Long = 0
     private var _pointIndex = 0
     private var _pointShift = 0
     private var _lastPointId = 0
     private var _messageIndex = 0
     private val _message = ByteArray(2048)
+    var listCoordinates = mutableListOf<DataPoint>()
     var check = true
     var recordCheck = false
     var soundType = 0
 
     private val broadcast: BroadcastReceiver = object: BroadcastReceiver() {
-        lateinit var startList: List<Long>
-        lateinit var stopList: List<Long>
+        lateinit var _startList: List<Long>
+        lateinit var _stopList: List<Long>
         var step by Delegates.notNull<Long>()
+        @RequiresApi(Build.VERSION_CODES.O)
         override fun onReceive(context: Context?, intent: Intent) {
-            //startList = intent.getLongArrayExtra(START_LIST)!!.toList()
-            //stopList = intent.getLongArrayExtra(STOP_LIST)!!.toList()
+            _startList = intent.getLongArrayExtra(START_LIST)!!.toList()
+            _stopList = intent.getLongArrayExtra(STOP_LIST)!!.toList()
             step = intent.getLongExtra(STEP,1000000L)
-            //startScan(startList,stopList)
+            _step = step
+            starList = _startList as MutableList<Long>
+            stopList = _stopList as MutableList<Long>
+            mediaPlayer = if (soundType == 1) MediaPlayer.create(context, R.raw.alarmbuzzer)
+            else MediaPlayer.create(context, R.raw.sirena)
+            model = context?.let { Model.newInstance(it) }!!
+            vibration = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+            startScan()
+            read()
+            //convertToBitmap()
             println(step)
-            stopSelf()
+            //stopSelf()
 
         }
 
@@ -81,14 +111,14 @@ class DroneAlertService: Service() {
         val filter = IntentFilter()
         filter.addAction(SET_DATA)
         registerReceiver(broadcast, filter)
-        //Timber.d(" <= Сервис печати: успешно создан")
+        println(" <= Сервис печати: успешно создан")
     }
 
     private var handlerThread: HandlerThread? = null
     private var handler: Handler? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        //Timber.d(" <= Сервис печати: запуск $intent, flags: $flags, startId: $startId")
+        println(" <= Сервис печати: запуск $intent, flags: $flags, startId: $startId")
         mIsServiceRunning = true
         handlerThread = HandlerThread("MyLocationThread")
         handlerThread!!.isDaemon = true
@@ -115,10 +145,17 @@ class DroneAlertService: Service() {
 
     companion object {
         const val SET_DATA = "data for scan"
-        //const val START_LIST = "START_LIST_EXTRA"
-       // const val STOP_LIST = "STOP_LIST_EXTRA"
+        const val GET_DATA = "get data"
+        const val START_LIST = "START_LIST_EXTRA"
+        const val STOP_LIST = "STOP_LIST_EXTRA"
         const val STEP = "STEP_EXTRA"
+        const val X_COORDINATS = "X_COORDINATS"
+        const val Y_COORDINATS = "Y_COORDINATS"
+        const val START = "START"
+        const val STOP = "STOP"
+        const val COUNTER = "COUNTER"
         private var mIsServiceRunning = false
+        var imageList = mutableListOf<ImageView>()
 
         val isScanServiceRunning: Boolean
             get() {
@@ -143,15 +180,20 @@ class DroneAlertService: Service() {
         private const val AMPLITUDE_ACCURACY_COEFFICIENT = 10.0 // one decimal place
         private const val _intermediateFrequency = 500000L
         var serialVM: UsbSerialDevice? = null
+        var starList = mutableListOf<Long>()
+        var stopList = mutableListOf<Long>()
+        var _step: Long = 0
+        var coord2 = mutableListOf<MutableList<List<DataPoint>>>()
+        var imageCounter = 0
     }
 
-    fun startScan(startList: List<Long>, stopList: List<Long>) {
-        job = CoroutineScope(Dispatchers.IO).launch {
+    fun startScan() {
+        job = CoroutineScope(Dispatchers.IO).launch(Dispatchers.IO) {
             //delay(100L)
             while (check) {
                 if (request == graphCounter)
                     request = 0
-                _start = startList[request]
+                _start = starList[request]
                 _stop = stopList[request]
                 //= 2400000000L // 2400 MHz
                 //= 2500000000L // 2499 MHz
@@ -161,6 +203,7 @@ class DroneAlertService: Service() {
                     BASE_ATTENUATION_CALCULATION_LEVEL * ATTENUATION_ACCURACY_COEFFICIENT + _attenuation * ATTENUATION_ACCURACY_COEFFICIENT
                 _lastPointId = 0
                 _pointShift = 0
+                listCoordinates.clear()
                 val command = String.format(
                     _commandPattern,
                     _start,
@@ -170,9 +213,369 @@ class DroneAlertService: Service() {
                     0 // command id (can be a random integer value)
                 )
                 serialVM?.write(command.toByteArray())
-                delay(150L)
+                delay(1000L)
             }
         }
         job!!.start()
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun read() {
+        serialVM?.read {
+            val buffer = it
+            if (buffer == null) {
+                return@read
+            }
+            for (charData in buffer) {
+                if (_messageIndex >= 1 && _message[_messageIndex - 1].toInt() == 13 && charData.toInt() == 10) {
+                    //if (_streamReceiver != null) {
+                    val dst = ByteArray(_messageIndex - 1)
+                    System.arraycopy(_message, 0, dst, 0, _messageIndex - 1)
+                    processDeviceResponse(dst)
+                    //}
+                    for (j in 0 until _messageIndex) {
+                        _message[j] = 0
+                    }
+                    _messageIndex = 0
+                } else {
+                    if (_messageIndex < _message.size) {
+                        _message[_messageIndex++] = charData
+                    } else {
+                        for (j in 0 until _messageIndex) {
+                            _message[j] = 0
+                        }
+                        _messageIndex = 0
+                    }
+                }
+            }
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun processDeviceResponse(message: ByteArray?) {
+        val messageLength = message?.size
+        if (messageLength == 2 || messageLength == 6) {
+            processMessage(message)
+        } else {
+            val readMessage = message?.let { String(it, 0, message.size) }
+            if (readMessage != null) {
+                processMessage(readMessage)
+            }
+        }
+    }
+
+    fun processMessage(message: ByteArray) {
+        val messageLength = message.size
+        if (messageLength == 6) {
+            _pointIndex =
+                message[0].toInt() shl 24 or (message[1].toInt() shl 16) or (message[2].toInt() shl 8) or message[3].toInt()
+            // pointIndex is calculated, but sometimes send to avoid possible data loss errors
+        }
+        val pointId = message[messageLength - 2].toInt() and 0x000000FF shr 3 // 1111 1000 0000 0000
+        val amplitudeIntValue =
+            message[messageLength - 2].toInt() and 0x00000007 shl 8 or (message[messageLength - 1].toInt() and 0x000000FF) // 0000 0111 1111 1111
+        val frequency =
+            _start + _pointShift * _step + _intermediateFrequency * 2 * _pointIndex // result is returned not in a row
+        // 100000000000000000000000     result return step = intermediate frequency
+        // 100000001000000000000000
+        // 100000001000000010000000
+        // new level
+        // 110000001000000010000000
+        // 110000001100000010000000
+        // 110000001100000011000000
+        // new level
+        // 111000001100000011000000
+        // etc
+        val amplitude =
+            (BASE_AMPLITUDE_CALCULATION_LEVEL * AMPLITUDE_ACCURACY_COEFFICIENT - amplitudeIntValue) / AMPLITUDE_ACCURACY_COEFFICIENT - _attenuation
+        // amplitudeIntValue = 18600 => amplitude = ((80 * 10.0 - 18659)) / 10.0 = -108.59 dB
+        if (_lastPointId < pointId || pointId == 0) {
+            receiveStreamData(frequency, amplitude)
+            _lastPointId = pointId
+            _pointIndex++
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun processMessage(readMessage: String) {
+        if (readMessage.contentEquals("l")) {
+            _pointShift++
+            _pointIndex = 0
+        } else if (readMessage.contentEquals("complete")) {
+            val list = listCoordinates.sortedBy { it.x }
+            val xCoordinates = mutableListOf<Double>()
+            val yCoordinates = mutableListOf<Double>()
+            val intent = Intent()
+            try {
+                if (list.size == (((stopList[request] - starList[request]) / _step).toInt() +
+                            ((stopList[request] - starList[request]) / 1000000L).toInt() + 1) && _step == 500000L
+                ) {
+                    try {
+                        if (list[0].x == (starList[request] / 1000000L).toDouble()) {
+                            list.forEach{
+                                xCoordinates.add(it.x)
+                                yCoordinates.add(it.y)
+                            }
+                            intent.action = GET_DATA
+                            intent.putExtra(X_COORDINATS, xCoordinates.toDoubleArray())
+                            intent.putExtra(Y_COORDINATS, yCoordinates.toDoubleArray())
+                            intent.putExtra(COUNTER, request)
+                            intent.putExtra(START, starList[request])
+                            intent.putExtra(STOP, stopList[request])
+                            applicationContext.sendBroadcast(intent)
+                            coord2[request].add(0, list)
+                            /*if (recordCheck) {
+                                recordList.add(0, list)
+                            }*/
+                            val listCoordinates = coord2[request]
+                            //convertToBitmap(listCoordinates)
+                            onCommandComplete()
+                        }
+                    } catch (e: Exception) {
+                        println(e)
+                    }
+                } else if (list.size == (((stopList[request] - starList[request]) / _step).toInt() +
+                            ((stopList[request] - starList[request]) / 1000000L).toInt() + 1) && _step == 1000000L
+                ) {
+                    try {
+                        if (list[0].x == (starList[request] / 1000000L).toDouble()) {
+                            /*if (recordCheck) {
+                                recordList.add(0, list)
+                            }*/
+                            list.forEach{
+                                xCoordinates.add(it.x)
+                                yCoordinates.add(it.y)
+                            }
+                            intent.action = GET_DATA
+                            intent.putExtra(X_COORDINATS, xCoordinates.toDoubleArray())
+                            intent.putExtra(Y_COORDINATS, yCoordinates.toDoubleArray())
+                            intent.putExtra(COUNTER, request)
+                            intent.putExtra(START, starList[request])
+                            intent.putExtra(STOP, stopList[request])
+                            applicationContext.sendBroadcast(intent)
+                            coord2[request].add(0, list)
+                            //liveDataCoordinates.postValue(list)
+                            val listCoordinates = coord2[request]
+                            //convertToBitmap(listCoordinates)
+                            onCommandComplete()
+                        }
+                    } catch (e: Exception) {
+                        println(e)
+                    }
+                } /*else if (list.size == 501 && _step == 250000L) {
+                try {
+                if (recordCheck) {
+                    recordList.add(0,list)
+                }
+                coord2[request].add(0,list)
+                liveDataCoordinates.postValue(list)
+                val listCoordinates = coord2[request]
+                convertToBitmap(listCoordinates)
+                onCommandComplete()
+                } catch (e:Exception) {
+                    println(e)
+                }
+            }*/ else if (list.size == (((stopList[request] - starList[request]) / _step).toInt() +
+                            ((stopList[request] - starList[request]) / 1000000L).toInt() + 1) && _step == 250000L
+                ) {
+                    try {
+                        /*if (recordCheck) {
+                            recordList.add(0, list)
+                        }*/
+                        list.forEach{
+                            xCoordinates.add(it.x)
+                            yCoordinates.add(it.y)
+                        }
+                        intent.action = GET_DATA
+                        intent.putExtra(X_COORDINATS, xCoordinates.toDoubleArray())
+                        intent.putExtra(Y_COORDINATS, yCoordinates.toDoubleArray())
+                        intent.putExtra(COUNTER, request)
+                        intent.putExtra(START, starList[request])
+                        intent.putExtra(STOP, stopList[request])
+                        applicationContext.sendBroadcast(intent)
+                        coord2[request].add(0, list)
+                        //liveDataCoordinates.postValue(list)
+                        val listCoordinates = coord2[request]
+                        //convertToBitmap(listCoordinates)
+                        onCommandComplete()
+                    } catch (e: Exception) {
+                        println(e)
+                    }
+                } else if (list.size == (((stopList[request] - starList[request]) / _step).toInt() +
+                            ((stopList[request] - starList[request]) / 1000000L).toInt() + 1) && _step == 100000L
+                ) {
+                    try {
+                        /*if (recordCheck) {
+                            recordList.add(0, list)
+                        }*/
+                        list.forEach{
+                            xCoordinates.add(it.x)
+                            yCoordinates.add(it.y)
+                        }
+                        intent.action = GET_DATA
+                        intent.putExtra(X_COORDINATS, xCoordinates.toDoubleArray())
+                        intent.putExtra(Y_COORDINATS, yCoordinates.toDoubleArray())
+                        intent.putExtra(COUNTER, request)
+                        intent.putExtra(START, starList[request])
+                        intent.putExtra(STOP, stopList[request])
+                        applicationContext.sendBroadcast(intent)
+                        coord2[request].add(0, list)
+                        //liveDataCoordinates.postValue(list)
+                        val listCoordinates = coord2[request]
+                        //convertToBitmap(listCoordinates)
+                        onCommandComplete()
+                    } catch (e: Exception) {
+                        println(e)
+                    }
+                }
+            } catch (e:Exception) {
+                println(e)
+            }
+        }
+    }
+
+    private fun onCommandComplete() {
+        if (serialVM != null) {
+            //serialVM!!.close()
+            request++
+            //stopTime = System.currentTimeMillis()
+            //println(AnalyzeViewModel.stopTime - AnalyzeViewModel.startTime)
+        }
+    }
+
+    private fun receiveStreamData(frequency: Long, amplitude: Double) {
+        /*if (_signalSeries != null) {
+            _signalSeries!!.add((frequency / 1000000L).toDouble(), amplitude)
+        }*/
+        val coordinates = DataPoint((frequency / 1000000.0), amplitude)
+        listCoordinates.add(coordinates)
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun convertToBitmap() {
+        convertJob = CoroutineScope(Dispatchers.Default).launch(Dispatchers.Default) {
+            while (check) {
+                if (counter == imageCounter) counter = 0
+                if (coord2[counter].size == 100) {
+                    coord2[counter].removeLast()
+                }
+                if (coord2[counter].isNotEmpty()) {
+                    addListsSeries(coord2[counter])
+                }
+                delay(150L)
+            }
+        }
+        convertJob!!.start()
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun addListsSeries(coord: MutableList<List<DataPoint>>) {
+        val width = (((_stop - _start) / 1000000L).toDouble() / (_step.toDouble() / (1000000L).toDouble()))
+        val bitmap = Bitmap.createBitmap(width.toInt()+1,100, Bitmap.Config.ARGB_8888)
+        bitmap.eraseColor(Color.rgb(30, 30, 30))
+        val listSeries = mutableListOf<Bitmap>()
+        val list = mutableListOf<List<Bitmap>>()
+        for (i in 0 until coord.size) {
+            var x = 0
+            for (j in 0 until coord[i].size) {
+                if (j == coord[i].lastIndex) {
+                    break
+                }
+                if (coord[i][j].x == coord[i][j + 1].x)
+                    continue
+                else {
+                    val color = 255 + coord[i][j].y.toInt()
+                    val colorForPixel = densityColor(color)
+                    bitmap.setPixel(
+                        x,
+                        i,
+                        Color.rgb( colorForPixel, colorForPixel, colorForPixel)
+                    )
+                    listSeries.add(bitmap)
+                    x++
+                }
+            }
+            list.add(0, listSeries)
+        }
+        /*if (coord[0][0].x == (starList[counter] / 1000000L).toDouble()) {
+            for (i in list.indices) {
+                for (j in list.indices) {
+                    imageList[counter].setImageBitmap(list[i][j])
+                }
+            }
+        }
+        val _bitmap = imageList[counter].drawable.toBitmap(340, 340, Bitmap.Config.ARGB_8888)
+        scanImage(mediaPlayer, model, _bitmap, vibration)*/
+    }
+
+    private fun densityColor(color: Int): Int {
+        val k = 255 / 40
+        val x = color - 160
+        val _color = x * k
+        return if (_color<30) 30
+        else if (_color >= 255) 255
+        else _color
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun scanImage(mediaPlayer: MediaPlayer, model: Model, bitmap: Bitmap, vibration: Vibrator) {
+        //CoroutineScope(Dispatchers.Default).launch {
+            val image = Bitmap.createScaledBitmap(bitmap, 64, 64, true)
+            val inputFeature0 =
+                TensorBuffer.createFixedSize(intArrayOf(1, 64, 64, 3), DataType.FLOAT32)
+            val byteBuffer = ByteBuffer.allocateDirect(4 * 64 * 64 * 3)
+            byteBuffer.order(ByteOrder.nativeOrder())
+            val intValues = IntArray(64 * 64)
+            image.getPixels(intValues, 0, image.width, 0, 0, image.width, image.height)
+            var pixel = 0
+            for (i in 0 until 64) {
+                for (j in 0 until 64) {
+                    val `val` = intValues[pixel] // RGB
+                    byteBuffer.putFloat(((`val` shr 16 and 0xFF).toFloat()))
+                    byteBuffer.putFloat(((`val` shr 8 and 0xFF).toFloat()))
+                    byteBuffer.putFloat(((`val` and 0xFF).toFloat()))
+                    pixel++
+                }
+            }
+
+            inputFeature0.loadBuffer(byteBuffer)
+
+// Runs model inference and gets result.
+            val outputs = model.process(inputFeature0)
+            val outputFeature0 = outputs.outputFeature0AsTensorBuffer
+
+            val confidences: FloatArray = outputFeature0.floatArray
+            // find the index of the class with the biggest confidence.
+            // find the index of the class with the biggest confidence.
+            var maxPos = 0
+            var maxConfidence = 0f
+            for (i in confidences.indices) {
+                if (confidences[i] > maxConfidence) {
+                    maxConfidence = confidences[i]
+                    maxPos = i
+                }
+            }
+            val classes = arrayOf("Drone", "Non Drone")
+            Log.i("Dron", classes[maxPos])
+            //liveDataDroneStatus.postValue(classes[maxPos])
+            if (classes[maxPos]=="Drone"){
+                if (soundType == 0) {
+                    vibration.vibrate(
+                        VibrationEffect.createOneShot(
+                            100L,
+                            VibrationEffect.DEFAULT_AMPLITUDE
+                        )
+                    )
+                } else {
+                    if (mediaPlayer.isPlaying) println("уже играет")
+                    else mediaPlayer.start()
+                }
+                /*val path = Uri.parse(resources.assets.open("alarmBuzzer.mp3").toString())
+                val player: MediaPlayer = MediaPlayer.create(requireContext(),path)
+                player.isLooping = true
+                player.start()*/
+            }
+        //}
+        counter++
     }
 }

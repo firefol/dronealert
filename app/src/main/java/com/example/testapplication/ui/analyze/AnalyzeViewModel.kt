@@ -14,6 +14,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.testapplication.ml.Model
+import com.example.testapplication.service.DroneAlertService
 import com.example.testapplication.utils.IStreamReceiver
 import com.felhr.usbserial.UsbSerialDevice
 import com.jjoe64.graphview.series.DataPoint
@@ -308,7 +309,7 @@ class AnalyzeViewModel : ViewModel() {
     @RequiresApi(Build.VERSION_CODES.O)
     fun convertToBitmap(coord: MutableList<List<DataPoint>>) {
         if (coord.size == 100) {
-            coord2[request].removeLast()
+            coord.removeLast()
         }
         if (coord.isNotEmpty()) {
             addListsSeries(coord)
@@ -317,7 +318,7 @@ class AnalyzeViewModel : ViewModel() {
 
     @RequiresApi(Build.VERSION_CODES.O)
     private fun addListsSeries(coord: MutableList<List<DataPoint>>) {
-        val width = (((_stop - _start) / 1000000L).toDouble() / (_step.toDouble() / (1000000L).toDouble()))
+        val width = (((_stop - _start) / 1000000L).toDouble() / (DroneAlertService._step.toDouble() / (1000000L).toDouble()))
         val bitmap = Bitmap.createBitmap(width.toInt()+1,100, Bitmap.Config.ARGB_8888)
         bitmap.eraseColor(Color.rgb(30, 30, 30))
         val listSeries = mutableListOf<Bitmap>()
@@ -344,7 +345,7 @@ class AnalyzeViewModel : ViewModel() {
             }
             list.add(0, listSeries)
         }
-        if (coord[0][0].x == (starList[request] / 1000000L).toDouble()) liveDataSeries1.postValue(list)
+        liveDataSeries1.postValue(list)
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
@@ -452,6 +453,20 @@ class AnalyzeViewModel : ViewModel() {
                 player.isLooping = true
                 player.start()*/
             }
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun convertToGraphPoint(xList: List<Double>, yList: List<Double>, counter:Int) {
+        viewModelScope.launch(Dispatchers.Default) {
+            listCoordinates.clear()
+            for (i in xList.indices) {
+                listCoordinates.add(DataPoint(xList[i], yList[i]))
+            }
+            liveDataCoordinates.postValue(listCoordinates)
+            coord2[counter].add(0, listCoordinates)
+            val coordinates = coord2[counter]
+            convertToBitmap(coordinates)
         }
     }
 }

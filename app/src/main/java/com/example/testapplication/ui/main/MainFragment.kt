@@ -15,6 +15,7 @@ import android.view.*
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.core.content.ContextCompat.registerReceiver
@@ -77,8 +78,8 @@ class MainFragment : Fragment() {
             filter,
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
-        //val intentBroadcast = Intent(requireContext(), DroneAlertService::class.java)
-        //ContextCompat.startForegroundService(requireContext(), intentBroadcast)
+        val intentBroadcast = Intent(requireContext(), DroneAlertService::class.java)
+        ContextCompat.startForegroundService(requireContext(), intentBroadcast)
         binding.toolbar.setOnMenuItemClickListener {
             when (it.itemId) {
                 R.id.setting -> {
@@ -91,22 +92,31 @@ class MainFragment : Fragment() {
         binding.connectButton.setOnClickListener {
             val inputManager = requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             inputManager.hideSoftInputFromWindow(it.windowToken, 0)
-            //val intent = Intent()
-            //intent.action = DroneAlertService.SET_DATA
-            //intent.putExtra(DroneAlertService.STEP, 500000L)
-            //activity?.sendBroadcast(intent)
-            if (analyzeViewModel.serialVM != null) {
-                analyzeViewModel.starList.clear()
-                analyzeViewModel.stopList.clear()
+            //val imageView = layoutInflater.inflate(R.layout.imageview_item, null, false)
+            //val imageViewItem = imageView.findViewById<ImageView>(R.id.imageView)
+            if ( DroneAlertService.serialVM != null) {
+                DroneAlertService.starList.clear()
+                DroneAlertService.stopList.clear()
+                DroneAlertService.imageCounter = binding.linearlistlayout.size
                 analyzeViewModel.graphCounter = binding.linearlistlayout.size
-                analyzeViewModel.coord2.clear()
+                DroneAlertService.coord2.clear()
+                //DroneAlertService.imageList.clear()
                 for (i in binding.linearlistlayout.indices) {
-                    analyzeViewModel.starList.add(binding.linearlistlayout[i].findViewById<EditText>(R.id.editTextNumber).text.toString().toLong() * 1000000L)
-                    analyzeViewModel.stopList.add(binding.linearlistlayout[i].findViewById<EditText>(R.id.editTextNumber2).text.toString().toLong() * 1000000L)
+                    DroneAlertService.starList.add(binding.linearlistlayout[i].findViewById<EditText>(R.id.editTextNumber).text.toString().toLong() * 1000000L)
+                    DroneAlertService.stopList.add(binding.linearlistlayout[i].findViewById<EditText>(R.id.editTextNumber2).text.toString().toLong() * 1000000L)
+                    DroneAlertService.coord2.add(mutableListOf())
                     analyzeViewModel.coord2.add(mutableListOf())
+                    //DroneAlertService.imageList.add(imageViewItem)
                     }
                 if (binding.editTextNumber3.text.toString().toInt() <= 250) analyzeViewModel.delay = 200L
-                analyzeViewModel._step = (binding.editTextNumber3.text.toString().toLong() * 1000L)
+
+                DroneAlertService._step = (binding.editTextNumber3.text.toString().toLong() * 1000L)
+                val intent = Intent()
+                intent.action = DroneAlertService.SET_DATA
+                intent.putExtra(DroneAlertService.START_LIST, DroneAlertService.starList.toLongArray())
+                intent.putExtra(DroneAlertService.STOP_LIST, DroneAlertService.stopList.toLongArray())
+                intent.putExtra(DroneAlertService.STEP, DroneAlertService._step)
+                activity?.sendBroadcast(intent)
                 analyzeViewModel.listCoordinates.clear()
                 findNavController().navigate(R.id.analyzeFragment)
             }
@@ -122,10 +132,10 @@ class MainFragment : Fragment() {
             val editTextMax = binding.linearlistlayout[i].findViewById<EditText>(R.id.editTextNumber2)
             if (analyzeViewModel.starList.isEmpty())
                 editTextMin.setText("2400")
-            else editTextMin.setText((analyzeViewModel.starList[i] / 1000000).toString())
+            else editTextMin.setText((DroneAlertService.starList[i] / 1000000).toString())
             if (analyzeViewModel.stopList.isEmpty())
                 editTextMax.setText("2500")
-            else editTextMax.setText((analyzeViewModel.stopList[i] / 1000000).toString())
+            else editTextMax.setText((DroneAlertService.stopList[i] / 1000000).toString())
             clickView(viewItems)
         }
         if (!(usbManager.deviceList.isNotEmpty() && analyzeViewModel.checkConnect)){
@@ -213,7 +223,7 @@ class MainFragment : Fragment() {
                             serial!!.setStopBits(UsbSerialInterface.STOP_BITS_1)
                             serial!!.setParity(UsbSerialInterface.PARITY_NONE)
                             serial!!.setFlowControl(UsbSerialInterface.FLOW_CONTROL_OFF)
-                            analyzeViewModel.serialVM = serial
+                            DroneAlertService.serialVM = serial
                         } else {
                             //Toast.makeText(context, "port not open", Toast.LENGTH_LONG).show()
                             serial!!.open()
@@ -222,7 +232,7 @@ class MainFragment : Fragment() {
                             serial!!.setStopBits(UsbSerialInterface.STOP_BITS_1)
                             serial!!.setParity(UsbSerialInterface.PARITY_ODD)
                             serial!!.setFlowControl(UsbSerialInterface.FLOW_CONTROL_OFF)
-                            analyzeViewModel.serialVM = serial
+                            DroneAlertService.serialVM = serial
 
                         }
                     } else {

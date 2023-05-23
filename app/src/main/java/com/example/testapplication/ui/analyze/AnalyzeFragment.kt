@@ -4,13 +4,16 @@ import android.Manifest.permission.READ_EXTERNAL_STORAGE
 import android.Manifest.permission.WRITE_EXTERNAL_STORAGE
 import android.annotation.SuppressLint
 import android.app.AlertDialog
+import android.content.BroadcastReceiver
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.hardware.usb.UsbManager
 import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Build
@@ -31,6 +34,8 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
+import androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
+import androidx.core.content.ContextCompat.registerReceiver
 import androidx.core.graphics.drawable.toBitmap
 import androidx.core.view.get
 import androidx.fragment.app.Fragment
@@ -39,7 +44,10 @@ import androidx.navigation.fragment.findNavController
 import com.example.testapplication.R
 import com.example.testapplication.databinding.FragmentAnalyzeBinding
 import com.example.testapplication.ml.Model
+import com.example.testapplication.service.DroneAlertService
 import com.example.testapplication.utils.DroneAlertSettings
+import com.felhr.usbserial.UsbSerialDevice
+import com.felhr.usbserial.UsbSerialInterface
 import com.jjoe64.graphview.GraphView
 import com.jjoe64.graphview.series.DataPoint
 import com.jjoe64.graphview.series.LineGraphSeries
@@ -87,8 +95,8 @@ class AnalyzeFragment : Fragment() {
                     //graphView.layoutParams.height = ((450 * metrics) / analyzeViewModel.graphCounter).toInt()
                     graphView.layoutParams.height = height /
                             analyzeViewModel.graphCounter
-                    graphView.viewport.setMinX((analyzeViewModel.starList[i] / 1000000L).toDouble())
-                    graphView.viewport.setMaxX((analyzeViewModel.stopList[i] / 1000000L).toDouble())
+                    graphView.viewport.setMinX((DroneAlertService.starList[i] / 1000000L).toDouble())
+                    graphView.viewport.setMaxX((DroneAlertService.stopList[i] / 1000000L).toDouble())
                     graphView.viewport.isXAxisBoundsManual = true
                     graphView.viewport.setMinY(-100.00)
                     graphView.viewport.setMaxY(-20.00)
@@ -98,7 +106,7 @@ class AnalyzeFragment : Fragment() {
                     if (graphCounter == analyzeViewModel.graphCounter) graphCounter = 0
                     try {
                         val graphView = binding.linearLayout[graphCounter].findViewById<GraphView>(R.id.graph123)
-                        if (list[0].x == (analyzeViewModel.starList[graphCounter] / 1000000L).toDouble()) {
+                        if (list[0].x == (DroneAlertService.starList[graphCounter] / 1000000L).toDouble()) {
                             //binding.graph1.removeAllSeries()
                             //if (list.size == 301) {
                             graphView.removeAllSeries()
@@ -128,8 +136,14 @@ class AnalyzeFragment : Fragment() {
                 }
             }
             analyzeViewModel.check = true
-            analyzeViewModel.startScan()
-            analyzeViewModel.read()
+            //analyzeViewModel.startScan()
+           // analyzeViewModel.read()
+            val filter = IntentFilter()
+            filter.addAction(DroneAlertService.GET_DATA)
+            registerReceiver(requireContext(),
+                brodcastReciever,
+                filter,
+            RECEIVER_NOT_EXPORTED)
         }
         mediaPlayer = if (analyzeViewModel.soundType == 1) MediaPlayer.create(context, R.raw.alarmbuzzer)
         else MediaPlayer.create(context, R.raw.sirena)
@@ -143,8 +157,8 @@ class AnalyzeFragment : Fragment() {
         for (i in 0 until analyzeViewModel.graphCounter) {
             val imageViewItem = layoutInflater.inflate(R.layout.imageview_item, null, false)
             imageViewItem.findViewById<TextView>(R.id.textViewDiapason).text =
-                (analyzeViewModel.starList[i] / 1000000L).toString() + " - " +
-                        (analyzeViewModel.stopList[i] / 1000000L).toString()
+                (DroneAlertService.starList[i] / 1000000L).toString() + " - " +
+                        (DroneAlertService.stopList[i] / 1000000L).toString()
             binding.gridLayout.addView(imageViewItem)
         }
         /*binding.graph2.viewport.setMinX(2400.00)
@@ -318,8 +332,21 @@ class AnalyzeFragment : Fragment() {
         graphCounter = 0
         imageCounter = 0
         droneStatusCounter = 0
+        requireContext().unregisterReceiver(brodcastReciever)
         if (mediaPlayer.isPlaying) mediaPlayer.stop()
         println("стоп")
 
+    }
+
+    private val brodcastReciever = object : BroadcastReceiver() {
+        @RequiresApi(Build.VERSION_CODES.O)
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val xList = intent!!.getDoubleArrayExtra(DroneAlertService.X_COORDINATS)!!.toList()
+            val yList = intent.getDoubleArrayExtra(DroneAlertService.Y_COORDINATS)!!.toList()
+            val counter = intent.getIntExtra(DroneAlertService.COUNTER, 0)
+            analyzeViewModel._start = intent.getLongExtra(DroneAlertService.START,0L)
+            analyzeViewModel._stop = intent.getLongExtra(DroneAlertService.STOP, 0L)
+            analyzeViewModel.convertToGraphPoint(xList, yList, counter)
+        }
     }
 }
