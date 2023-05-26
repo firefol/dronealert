@@ -34,6 +34,7 @@
             </intent-filter>
         </activity>
         <service android:name="com.example.testapplication.service.DroneAlertService"
+            android:foregroundServiceType = "mediaPlayback"
             android:enabled="true"/>
     </application>
 

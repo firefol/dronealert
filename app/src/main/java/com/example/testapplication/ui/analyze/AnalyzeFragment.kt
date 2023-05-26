@@ -1,7 +1,5 @@
 package com.example.testapplication.ui.analyze
 
-import android.Manifest.permission.READ_EXTERNAL_STORAGE
-import android.Manifest.permission.WRITE_EXTERNAL_STORAGE
 import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.content.BroadcastReceiver
@@ -9,11 +7,8 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.PackageManager
-import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.hardware.usb.UsbManager
 import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Build
@@ -33,46 +28,43 @@ import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.annotation.RequiresApi
-import androidx.core.content.ContextCompat
 import androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
 import androidx.core.content.ContextCompat.registerReceiver
 import androidx.core.graphics.drawable.toBitmap
 import androidx.core.view.get
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.findNavController
 import com.example.testapplication.R
 import com.example.testapplication.databinding.FragmentAnalyzeBinding
 import com.example.testapplication.ml.Model
 import com.example.testapplication.service.DroneAlertService
+import com.example.testapplication.ui.MainViewModel
 import com.example.testapplication.utils.DroneAlertSettings
-import com.felhr.usbserial.UsbSerialDevice
-import com.felhr.usbserial.UsbSerialInterface
 import com.jjoe64.graphview.GraphView
 import com.jjoe64.graphview.series.DataPoint
 import com.jjoe64.graphview.series.LineGraphSeries
 import java.io.File
 import java.io.FileOutputStream
 import java.io.OutputStream
-import kotlin.properties.Delegates
 
 
 class AnalyzeFragment : Fragment() {
 
     private lateinit var binding: FragmentAnalyzeBinding
-    private val analyzeViewModel: AnalyzeViewModel by activityViewModels()
+    private val mainViewModel: MainViewModel by activityViewModels()
+    lateinit var analyzeViewModel: AnalyzeViewModel
     var graphCounter = 0
     var imageCounter = 0
     var droneStatusCounter = 0
     private lateinit var mediaPlayer:MediaPlayer
-
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
         binding = FragmentAnalyzeBinding.inflate(inflater, container, false)
-        //analyzeViewModel.initStreamReceiver(this)
         return binding.root
     }
 
@@ -81,7 +73,10 @@ class AnalyzeFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         val setting = DroneAlertSettings(requireContext())
+        analyzeViewModel = ViewModelProvider(this)[AnalyzeViewModel::class.java]
         analyzeViewModel.soundType = setting.connectionType
+        analyzeViewModel.graphCounter = mainViewModel.graphCounter
+        analyzeViewModel.coord2 = mainViewModel.coord2
         binding.linearLayout.post {
             if (analyzeViewModel.graphCounter > 6) {
                 binding.linearLayout.visibility = GONE
@@ -91,12 +86,10 @@ class AnalyzeFragment : Fragment() {
                     val graphItems = layoutInflater.inflate(R.layout.graph_item, null, false)
                     binding.linearLayout.addView(graphItems)
                     val graphView = binding.linearLayout[i].findViewById<GraphView>(R.id.graph123)
-                    //val metrics = resources.displayMetrics.density
-                    //graphView.layoutParams.height = ((450 * metrics) / analyzeViewModel.graphCounter).toInt()
                     graphView.layoutParams.height = height /
                             analyzeViewModel.graphCounter
-                    graphView.viewport.setMinX((DroneAlertService.starList[i] / 1000000L).toDouble())
-                    graphView.viewport.setMaxX((DroneAlertService.stopList[i] / 1000000L).toDouble())
+                    graphView.viewport.setMinX((mainViewModel.starList[i] / 1000000L).toDouble())
+                    graphView.viewport.setMaxX((mainViewModel.stopList[i] / 1000000L).toDouble())
                     graphView.viewport.isXAxisBoundsManual = true
                     graphView.viewport.setMinY(-100.00)
                     graphView.viewport.setMaxY(-20.00)
@@ -106,44 +99,28 @@ class AnalyzeFragment : Fragment() {
                     if (graphCounter == analyzeViewModel.graphCounter) graphCounter = 0
                     try {
                         val graphView = binding.linearLayout[graphCounter].findViewById<GraphView>(R.id.graph123)
-                        if (list[0].x == (DroneAlertService.starList[graphCounter] / 1000000L).toDouble()) {
-                            //binding.graph1.removeAllSeries()
-                            //if (list.size == 301) {
+                        if (list[0].x == (mainViewModel.starList[graphCounter] / 1000000L).toDouble()) {
                             graphView.removeAllSeries()
-                            val series: LineGraphSeries<DataPoint> = LineGraphSeries(
-                                list.toTypedArray()
-                            )
-                            series.thickness = 3
-                            //binding.graph1.addSeries(series)
-                            graphView.addSeries(series)
-                            graphCounter++
-                        } else {
-                            graphView.removeAllSeries()
-                            //binding.graph2.removeAllSeries()
-                            //if (list.size == 301) {
                             val series: LineGraphSeries<DataPoint> = LineGraphSeries(
                                 list.toTypedArray()
                             )
                             series.thickness = 3
                             graphView.addSeries(series)
-                            //binding.graph2.addSeries(series)
+                            graphCounter++
+                        } else {
+                            graphView.removeAllSeries()
+                            val series: LineGraphSeries<DataPoint> = LineGraphSeries(
+                                list.toTypedArray()
+                            )
+                            series.thickness = 3
+                            graphView.addSeries(series)
                         }
-                        //} else
-                        //println("количество${list.size}")
                     } catch (e:Exception) {
                         println(e)
                     }
                 }
             }
             analyzeViewModel.check = true
-            //analyzeViewModel.startScan()
-           // analyzeViewModel.read()
-            val filter = IntentFilter()
-            filter.addAction(DroneAlertService.GET_DATA)
-            registerReceiver(requireContext(),
-                brodcastReciever,
-                filter,
-            RECEIVER_NOT_EXPORTED)
         }
         mediaPlayer = if (analyzeViewModel.soundType == 1) MediaPlayer.create(context, R.raw.alarmbuzzer)
         else MediaPlayer.create(context, R.raw.sirena)
@@ -157,31 +134,13 @@ class AnalyzeFragment : Fragment() {
         for (i in 0 until analyzeViewModel.graphCounter) {
             val imageViewItem = layoutInflater.inflate(R.layout.imageview_item, null, false)
             imageViewItem.findViewById<TextView>(R.id.textViewDiapason).text =
-                (DroneAlertService.starList[i] / 1000000L).toString() + " - " +
-                        (DroneAlertService.stopList[i] / 1000000L).toString()
+                (mainViewModel.starList[i] / 1000000L).toString() + " - " +
+                        (mainViewModel.stopList[i] / 1000000L).toString()
             binding.gridLayout.addView(imageViewItem)
         }
-        /*binding.graph2.viewport.setMinX(2400.00)
-        binding.graph2.viewport.setMaxX(2500.00)
-        binding.graph2.viewport.isXAxisBoundsManual = true
-        binding.graph2.viewport.setMinY(analyzeViewModel.yCount - 100)
-        binding.graph2.viewport.setMaxY(analyzeViewModel.yCount)
-        binding.graph2.viewport.isYAxisBoundsManual = true
-        binding.graph2.gridLabelRenderer.isVerticalLabelsVisible = false
-        binding.graph2.gridLabelRenderer.isHorizontalLabelsVisible = false
-        binding.graph2.gridLabelRenderer.setHumanRounding(false)*/
         analyzeViewModel.getLiveDataSeriesObserver1().observe(viewLifecycleOwner) {
             if (imageCounter == analyzeViewModel.graphCounter) imageCounter = 0
             val imageViewItem = binding.gridLayout[imageCounter].findViewById<ImageView>(R.id.imageView)
-            /*for (i in it){
-                binding.graph2.addSeries(i)
-            }
-            binding.graph2.viewport.setMinY(analyzeViewModel.yCount - 100)
-            binding.graph2.viewport.setMaxY(analyzeViewModel.yCount)
-            binding.graph2.viewport.isYAxisBoundsManual = true
-            analyzeViewModel.yCount++
-            if (binding.graph2.series.size > 100)
-                binding.graph2.series.removeLast()*/
             for (i in it.indices){
                 for (j in it.indices) {
                     imageViewItem.setImageBitmap(it[i][j])
@@ -205,21 +164,6 @@ class AnalyzeFragment : Fragment() {
             if (bitmap != null) {
                 saveMediaToStorage(bitmap)
             }
-            /*val boolean = checkPermission()
-            if (!boolean) {
-                ActivityCompat.requestPermissions(
-                    requireActivity(),
-                    arrayOf(READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE),
-                    1
-                )
-            }
-            else {
-                val bitmap = getScreenShotFromView(binding.linearLayout2)
-                if (bitmap != null) {
-                    saveMediaToStorage(bitmap)
-                }
-
-            }*/
         }
         binding.RecordButton.setOnClickListener {
             if (!analyzeViewModel.recordCheck) {
@@ -258,17 +202,6 @@ class AnalyzeFragment : Fragment() {
         }
     }
 
-    private fun checkPermission(): Boolean {
-        return if (SDK_INT >= Build.VERSION_CODES.R) {
-            Environment.isExternalStorageManager()
-        } else {
-            val result =
-                ContextCompat.checkSelfPermission(requireContext(), READ_EXTERNAL_STORAGE)
-            val result1 =
-                ContextCompat.checkSelfPermission(requireContext(), WRITE_EXTERNAL_STORAGE)
-            result == PackageManager.PERMISSION_GRANTED && result1 == PackageManager.PERMISSION_GRANTED
-        }
-    }
 
     private fun getScreenShotFromView(v: View): Bitmap? {
         // create a bitmap object
@@ -328,6 +261,8 @@ class AnalyzeFragment : Fragment() {
     }
 
     override fun onStop() {
+        analyzeViewModel.getLiveDataObserver().removeObservers(this)
+        analyzeViewModel.getLiveDataSeriesObserver1().removeObservers(this)
         super.onStop()
         graphCounter = 0
         imageCounter = 0
@@ -337,6 +272,17 @@ class AnalyzeFragment : Fragment() {
         println("стоп")
 
     }
+
+    override fun onStart() {
+        val filter = IntentFilter()
+        filter.addAction(DroneAlertService.GET_DATA)
+        registerReceiver(requireContext(),
+            brodcastReciever,
+            filter,
+            RECEIVER_NOT_EXPORTED)
+        super.onStart()
+    }
+
 
     private val brodcastReciever = object : BroadcastReceiver() {
         @RequiresApi(Build.VERSION_CODES.O)

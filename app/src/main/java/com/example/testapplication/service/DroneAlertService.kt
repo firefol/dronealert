@@ -23,6 +23,7 @@ import androidx.annotation.RequiresApi
 import androidx.core.graphics.drawable.toBitmap
 import com.example.testapplication.R
 import com.example.testapplication.ml.Model
+import com.example.testapplication.utils.DroneAlertSettings
 import com.felhr.usbserial.UsbSerialDevice
 import com.jjoe64.graphview.series.DataPoint
 import kotlinx.coroutines.CoroutineScope
@@ -41,7 +42,7 @@ class DroneAlertService: Service() {
     private var job: Job? = null
     private var convertJob: Job? = null
     lateinit var mediaPlayer:MediaPlayer
-    lateinit var model: Model
+    var model: Model? = null
     lateinit var vibration: Vibrator
     var _start: Long = 0
     var _stop: Long = 0
@@ -68,21 +69,31 @@ class DroneAlertService: Service() {
         var step by Delegates.notNull<Long>()
         @RequiresApi(Build.VERSION_CODES.O)
         override fun onReceive(context: Context?, intent: Intent) {
-            _startList = intent.getLongArrayExtra(START_LIST)!!.toList()
-            _stopList = intent.getLongArrayExtra(STOP_LIST)!!.toList()
-            step = intent.getLongExtra(STEP,1000000L)
-            _step = step
-            starList = _startList as MutableList<Long>
-            stopList = _stopList as MutableList<Long>
-            mediaPlayer = if (soundType == 1) MediaPlayer.create(context, R.raw.alarmbuzzer)
-            else MediaPlayer.create(context, R.raw.sirena)
-            model = context?.let { Model.newInstance(it) }!!
-            vibration = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-            startScan()
-            read()
-            //convertToBitmap()
-            println(step)
-            //stopSelf()
+            if (intent.action == SET_DATA) {
+                _startList = intent.getLongArrayExtra(START_LIST)!!.toList()
+                _stopList = intent.getLongArrayExtra(STOP_LIST)!!.toList()
+                val setting = context?.let { DroneAlertSettings(it) }
+                soundType = setting!!.connectionType
+                step = intent.getLongExtra(STEP, 1000000L)
+                graphCounter = intent.getIntExtra(GRAPHCOUNTER,1)
+                _step = step
+                starList = _startList as MutableList<Long>
+                stopList = _stopList as MutableList<Long>
+                mediaPlayer = if (soundType == 1) MediaPlayer.create(context, R.raw.alarmbuzzer)
+                else MediaPlayer.create(context, R.raw.sirena)
+                model = context.let { Model.newInstance(it) }
+                vibration = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                startScan()
+                read()
+                convertToBitmap()
+                println(step)
+            } else {
+                job?.cancel()
+                convertJob?.cancel()
+                model?.close()
+                counter = 0
+                request = 0
+            }
 
         }
 
@@ -110,6 +121,7 @@ class DroneAlertService: Service() {
         }
         val filter = IntentFilter()
         filter.addAction(SET_DATA)
+        filter.addAction(STOP_SCAN)
         registerReceiver(broadcast, filter)
         println(" <= Сервис печати: успешно создан")
     }
@@ -144,11 +156,13 @@ class DroneAlertService: Service() {
 
 
     companion object {
+        const val STOP_SCAN = "stop scan"
         const val SET_DATA = "data for scan"
         const val GET_DATA = "get data"
         const val START_LIST = "START_LIST_EXTRA"
         const val STOP_LIST = "STOP_LIST_EXTRA"
         const val STEP = "STEP_EXTRA"
+        const val GRAPHCOUNTER = "GRAPH_COUNTER"
         const val X_COORDINATS = "X_COORDINATS"
         const val Y_COORDINATS = "Y_COORDINATS"
         const val START = "START"
@@ -213,7 +227,7 @@ class DroneAlertService: Service() {
                     0 // command id (can be a random integer value)
                 )
                 serialVM?.write(command.toByteArray())
-                delay(1000L)
+                delay(150L)
             }
         }
         job!!.start()
@@ -394,9 +408,6 @@ class DroneAlertService: Service() {
                         intent.putExtra(STOP, stopList[request])
                         applicationContext.sendBroadcast(intent)
                         coord2[request].add(0, list)
-                        //liveDataCoordinates.postValue(list)
-                        val listCoordinates = coord2[request]
-                        //convertToBitmap(listCoordinates)
                         onCommandComplete()
                     } catch (e: Exception) {
                         println(e)
@@ -405,9 +416,6 @@ class DroneAlertService: Service() {
                             ((stopList[request] - starList[request]) / 1000000L).toInt() + 1) && _step == 100000L
                 ) {
                     try {
-                        /*if (recordCheck) {
-                            recordList.add(0, list)
-                        }*/
                         list.forEach{
                             xCoordinates.add(it.x)
                             yCoordinates.add(it.y)
@@ -420,9 +428,6 @@ class DroneAlertService: Service() {
                         intent.putExtra(STOP, stopList[request])
                         applicationContext.sendBroadcast(intent)
                         coord2[request].add(0, list)
-                        //liveDataCoordinates.postValue(list)
-                        val listCoordinates = coord2[request]
-                        //convertToBitmap(listCoordinates)
                         onCommandComplete()
                     } catch (e: Exception) {
                         println(e)
@@ -456,13 +461,19 @@ class DroneAlertService: Service() {
         convertJob = CoroutineScope(Dispatchers.Default).launch(Dispatchers.Default) {
             while (check) {
                 if (counter == imageCounter) counter = 0
-                if (coord2[counter].size == 100) {
-                    coord2[counter].removeLast()
+                try {
+                    while (coord2[counter].size >= 100) {
+                        Log.i("Counter","до удаления" + " " + coord2[counter].size.toString())
+                        coord2[counter].removeLast()
+                        Log.i("Counter","после удаления" + " " + coord2[counter].size.toString())
+                    }
+                    if (coord2[counter].isNotEmpty()) {
+                        addListsSeries(coord2[counter])
+                    }
+                }catch (e:Exception){
+                    println(e.message)
                 }
-                if (coord2[counter].isNotEmpty()) {
-                    addListsSeries(coord2[counter])
-                }
-                delay(150L)
+                delay(100L)
             }
         }
         convertJob!!.start()
@@ -477,6 +488,8 @@ class DroneAlertService: Service() {
         val list = mutableListOf<List<Bitmap>>()
         for (i in 0 until coord.size) {
             var x = 0
+            if (i >= 100) break
+            Log.i("size", i.toString())
             for (j in 0 until coord[i].size) {
                 if (j == coord[i].lastIndex) {
                     break
@@ -497,7 +510,7 @@ class DroneAlertService: Service() {
             }
             list.add(0, listSeries)
         }
-        /*if (coord[0][0].x == (starList[counter] / 1000000L).toDouble()) {
+        if (coord[0][0].x == (starList[counter] / 1000000L).toDouble()) {
             for (i in list.indices) {
                 for (j in list.indices) {
                     imageList[counter].setImageBitmap(list[i][j])
@@ -505,7 +518,7 @@ class DroneAlertService: Service() {
             }
         }
         val _bitmap = imageList[counter].drawable.toBitmap(340, 340, Bitmap.Config.ARGB_8888)
-        scanImage(mediaPlayer, model, _bitmap, vibration)*/
+        model?.let { scanImage(mediaPlayer, it, _bitmap, vibration) }
     }
 
     private fun densityColor(color: Int): Int {
