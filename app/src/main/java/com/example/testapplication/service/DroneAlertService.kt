@@ -86,7 +86,6 @@ class DroneAlertService: Service() {
                 startScan()
                 read()
                 convertToBitmap()
-                println(step)
             } else {
                 job?.cancel()
                 convertJob?.cancel()
@@ -123,14 +122,14 @@ class DroneAlertService: Service() {
         filter.addAction(SET_DATA)
         filter.addAction(STOP_SCAN)
         registerReceiver(broadcast, filter)
-        println(" <= Сервис печати: успешно создан")
+        println(" <= Сервис скана: успешно создан")
     }
 
     private var handlerThread: HandlerThread? = null
     private var handler: Handler? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        println(" <= Сервис печати: запуск $intent, flags: $flags, startId: $startId")
+        println(" <= Сервис скана: запуск $intent, flags: $flags, startId: $startId")
         mIsServiceRunning = true
         handlerThread = HandlerThread("MyLocationThread")
         handlerThread!!.isDaemon = true

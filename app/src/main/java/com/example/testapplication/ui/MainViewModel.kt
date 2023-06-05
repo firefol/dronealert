@@ -18,6 +18,7 @@ class MainViewModel: ViewModel() {
     var check = true
     var recordCheck = false
     var soundType = 0
+    var position:Int? = null
     var coord2 = mutableListOf<MutableList<List<DataPoint>>>()
     var listCoordinates = mutableListOf<DataPoint>()
 }

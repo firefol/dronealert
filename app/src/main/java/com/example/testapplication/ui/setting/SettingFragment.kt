@@ -50,6 +50,15 @@ class SettingFragment : Fragment() {
         )
 
         viewAdapter += ViewAdapter.DataItem(
+            id = R.id.settingsCounterGraph,
+            name = "Количество графиков",
+            data = ViewAdapter.EnumEditData(
+                variants = requireContext().resources.getStringArray(R.array.counter_graph),
+                value = droneAlertSettings.counterGraph
+            )
+        )
+
+        viewAdapter += ViewAdapter.DataItem(
             id = R.id.infoVersion,
             name = "Версия приложения",
             data = ViewAdapter.TextEditData(
@@ -59,15 +68,6 @@ class SettingFragment : Fragment() {
                 ).versionName
             ),
             isReadOnly = true
-        )
-
-        viewAdapter += ViewAdapter.DataItem(
-            id = R.id.settingsCounterGraph,
-            name = "Количество графиков",
-            data = ViewAdapter.EnumEditData(
-                variants = requireContext().resources.getStringArray(R.array.counter_graph),
-                value = droneAlertSettings.counterGraph
-            )
         )
 
         binding.typeSettingsView.adapter = viewAdapter

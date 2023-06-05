@@ -10,10 +10,17 @@ import android.content.IntentFilter
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbDeviceConnection
 import android.hardware.usb.UsbManager
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.Settings
+import android.text.InputFilter
+import android.text.InputType
 import android.util.Log
 import android.view.*
 import android.view.inputmethod.InputMethodManager
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.ImageView
@@ -60,8 +67,59 @@ class MainFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         val setting = DroneAlertSettings(requireContext())
+        if (Build.VERSION.SDK_INT >= 30) {
+            if (!Environment.isExternalStorageManager()) {
+                val getpermission = Intent()
+                getpermission.action = Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION
+                startActivity(getpermission)
+            }
+        }
         binding.toolbar.inflateMenu(R.menu.toolbar)
         usbManager = context?.getSystemService(Context.USB_SERVICE) as UsbManager
+        val items = resources.getStringArray(R.array.step)
+        val adapter = ArrayAdapter(requireContext(),
+            android.R.layout.simple_spinner_dropdown_item, items)
+        binding.Spinner.adapter = adapter
+        binding.Spinner.onItemSelectedListener = object: AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(
+                parent: AdapterView<*>?,
+                view: View?,
+                position: Int,
+                id: Long
+            ) {
+                when (position) {
+                    0 -> {
+                        mainViewModel._step = binding.Spinner.getItemAtPosition(position).
+                        toString().toLong() * 1000L
+                        mainViewModel.position = position
+                        println(binding.Spinner.getItemAtPosition(position))
+                    }
+                    1 -> {
+                        mainViewModel._step = binding.Spinner.getItemAtPosition(position).
+                        toString().toLong() * 1000L
+                        mainViewModel.position = position
+                        println(binding.Spinner.getItemAtPosition(position))
+                    }
+                    2-> {
+                        mainViewModel._step = binding.Spinner.getItemAtPosition(position).
+                        toString().toLong() * 1000L
+                        mainViewModel.position = position
+                        println(binding.Spinner.getItemAtPosition(position))
+                    }
+                    3-> {
+                        mainViewModel._step = binding.Spinner.getItemAtPosition(position).
+                        toString().toLong() * 1000L
+                        mainViewModel.position = position
+                        println(binding.Spinner.getItemAtPosition(position))
+                    }
+                }
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {
+
+            }
+        }
+        if (mainViewModel.position != null) binding.Spinner.setSelection(mainViewModel.position!!)
+        else binding.Spinner.setSelection(0)
         val filter = IntentFilter()
         filter.addAction(ACTION_USB_PERMISSION)
         filter.addAction(UsbManager.ACTION_USB_ACCESSORY_ATTACHED)
@@ -124,10 +182,10 @@ class MainFragment : Fragment() {
                     //mainViewModel.coord2.add(mutableListOf())
                     DroneAlertService.imageList.add(imageViewItem)
                 }
-                if (binding.editTextNumber3.text.toString().toInt() <= 250) mainViewModel.delay =
-                    200L
+                //if (binding.editTextNumber3.text.toString().toInt() <= 250) mainViewModel.delay =
+                //    200L
 
-                mainViewModel._step = (binding.editTextNumber3.text.toString().toLong() * 1000L)
+                //mainViewModel._step = (binding.editTextNumber3.text.toString().toLong() * 1000L)
                 DroneAlertService.coord2 = mainViewModel.coord2
                 val intent = Intent()
                 intent.action = DroneAlertService.SET_DATA
@@ -139,6 +197,30 @@ class MainFragment : Fragment() {
                 mainViewModel.listCoordinates.clear()
                 findNavController().navigate(R.id.analyzeFragment)
             }
+                /*else {
+                mainViewModel.graphCounter = binding.linearlistlayout.size
+                DroneAlertService.coord2.clear()
+                mainViewModel.starList.clear()
+                mainViewModel.stopList.clear()
+                mainViewModel.coord2.clear()
+                DroneAlertService.imageList.clear()
+                for (i in binding.linearlistlayout.indices) {
+                    mainViewModel.starList.add(
+                        binding.linearlistlayout[i].findViewById<EditText>(
+                            R.id.editTextNumber
+                        ).text.toString().toLong() * 1000000L
+                    )
+                    mainViewModel.stopList.add(
+                        binding.linearlistlayout[i].findViewById<EditText>(
+                            R.id.editTextNumber2
+                        ).text.toString().toLong() * 1000000L
+                    )
+                    mainViewModel.coord2.add(mutableListOf())
+                    //mainViewModel.coord2.add(mutableListOf())
+                    DroneAlertService.imageList.add(imageViewItem)
+                }
+                findNavController().navigate(R.id.analyzeFragment)
+            }*/
         }
         allEds = mutableListOf()
         val graphCounterVariants = requireContext().resources.getStringArray(R.array.counter_graph)
