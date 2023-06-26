@@ -83,7 +83,8 @@ class DroneAlertService: Service() {
                 else MediaPlayer.create(context, R.raw.sirena)
                 model = context.let { Model.newInstance(it) }
                 vibration = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-                startScan()
+                if (checkSA6) startScanSA6()
+                else startScan()
                 read()
                 convertToBitmap()
             } else {
@@ -177,6 +178,7 @@ class DroneAlertService: Service() {
             }
 
         private const val _commandPattern = "scn %1\$d %2\$d %3\$d %4\$d %5\$d \r\n"
+        private const val _commandPatternSA6 = "scn20 %1\$d %2\$d %3\$d %4\$d %5\$d %6\$d %7\$d  \r\n"
 
         // scn  - scan command
         // %1$d - start frequency, long value in Hz
@@ -198,6 +200,7 @@ class DroneAlertService: Service() {
         var _step: Long = 0
         var coord2 = mutableListOf<MutableList<List<DataPoint>>>()
         var imageCounter = 0
+        var checkSA6 = false
     }
 
     fun startScan() {
@@ -224,6 +227,41 @@ class DroneAlertService: Service() {
                     _step,
                     attenuation,
                     0 // command id (can be a random integer value)
+                )
+                serialVM?.write(command.toByteArray())
+                delay(150L)
+            }
+        }
+        job!!.start()
+    }
+
+    fun startScanSA6() {
+        job = CoroutineScope(Dispatchers.IO).launch(Dispatchers.IO) {
+            //delay(100L)
+            while (check) {
+                if (request == graphCounter)
+                    request = 0
+                _start = starList[request]
+                _stop = stopList[request]
+                //= 2400000000L // 2400 MHz
+                //= 2500000000L // 2499 MHz
+                //_step = 500000L //  500 KHz
+                _attenuation = 0 //    0 dB
+                val attenuation =
+                    BASE_ATTENUATION_CALCULATION_LEVEL * ATTENUATION_ACCURACY_COEFFICIENT + _attenuation * ATTENUATION_ACCURACY_COEFFICIENT
+                _lastPointId = 0
+                _pointShift = 0
+                listCoordinates.clear()
+                val command = String.format(
+                    _commandPatternSA6,
+                    _start,
+                    _stop,
+                    _step,
+                    200,
+                    20,
+                    10700000,
+                    attenuation
+                    // command id (can be a random integer value)
                 )
                 serialVM?.write(command.toByteArray())
                 delay(150L)
@@ -265,15 +303,35 @@ class DroneAlertService: Service() {
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
-    fun processDeviceResponse(message: ByteArray?) {
-        val messageLength = message?.size
+    fun processDeviceResponse(message: ByteArray) {
+        val messageLength = message.size
         if (messageLength == 2 || messageLength == 6) {
             processMessage(message)
         } else {
-            val readMessage = message?.let { String(it, 0, message.size) }
-            if (readMessage != null) {
+            if (messageLength > 100) {
+                val q = (_stop - _start) / _step * 2
+                val w = messageLength - q
+                test(message, w.toInt())
+            } else {
+                val readMessage = message.let { String(it, 0, message.size) }
                 processMessage(readMessage)
             }
+        }
+    }
+
+    private fun test(message: ByteArray, size: Int) {
+        var i = 0
+        var k = 0
+        while (i != message.size - size) {
+            if (message[i]< 0) message[i]= (message[i] + 128).toByte()
+            if (message[i+1]< 0) message[i+1]= (message[i+1] + 128).toByte()
+            val qwe = message[i].toInt() shl 8 or message[i + 1].toInt()
+            val data = qwe  and 2047
+            val amplitude = (BASE_AMPLITUDE_CALCULATION_LEVEL * AMPLITUDE_ACCURACY_COEFFICIENT - data) / AMPLITUDE_ACCURACY_COEFFICIENT - _attenuation
+            val frequency = _start + _step * k
+            receiveStreamData(frequency, amplitude)
+            k++
+            i+= 2
         }
     }
 
@@ -314,6 +372,9 @@ class DroneAlertService: Service() {
         if (readMessage.contentEquals("l")) {
             _pointShift++
             _pointIndex = 0
+        } else if(!readMessage.contentEquals("l") && !readMessage.contentEquals("complete")) {
+            val stringValue = readMessage.replace(" ", "")
+            println(123)
         } else if (readMessage.contentEquals("complete")) {
             val list = listCoordinates.sortedBy { it.x }
             val xCoordinates = mutableListOf<Double>()

@@ -33,7 +33,9 @@ class AnalyzeViewModel : ViewModel() {
     var check = true
     var recordCheck = false
     var soundType = 0
+    var i = 0
     private var liveDataCoordinates: MutableLiveData<List<DataPoint>> = MutableLiveData()
+    var test = mutableListOf<MutableLiveData<List<DataPoint>>>()
     var coord2 = mutableListOf<MutableList<List<DataPoint>>>()
     var recordList = mutableListOf<List<DataPoint>>()
     private var liveDataSeries1: MutableLiveData<List<List<Bitmap>>> = MutableLiveData()

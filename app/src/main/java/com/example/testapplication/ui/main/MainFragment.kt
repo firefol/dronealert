@@ -14,9 +14,6 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
-import android.text.InputFilter
-import android.text.InputType
-import android.util.Log
 import android.view.*
 import android.view.inputmethod.InputMethodManager
 import android.widget.AdapterView
@@ -182,9 +179,9 @@ class MainFragment : Fragment() {
                     //mainViewModel.coord2.add(mutableListOf())
                     DroneAlertService.imageList.add(imageViewItem)
                 }
+                if (device?.manufacturerName == "Arinst SSA-Universal") DroneAlertService.checkSA6 = true
                 //if (binding.editTextNumber3.text.toString().toInt() <= 250) mainViewModel.delay =
                 //    200L
-
                 //mainViewModel._step = (binding.editTextNumber3.text.toString().toLong() * 1000L)
                 DroneAlertService.coord2 = mainViewModel.coord2
                 val intent = Intent()
@@ -317,7 +314,7 @@ class MainFragment : Fragment() {
                     serial = UsbSerialDevice.createUsbSerialDevice(device, connection)
                     if (serial != null) {
                         if (serial!!.isOpen) {
-                            serial!!.setBaudRate(11520)
+                            serial!!.setBaudRate(115200)
                             serial!!.setDataBits(UsbSerialInterface.DATA_BITS_8)
                             serial!!.setStopBits(UsbSerialInterface.STOP_BITS_1)
                             serial!!.setParity(UsbSerialInterface.PARITY_NONE)
@@ -325,10 +322,10 @@ class MainFragment : Fragment() {
                             DroneAlertService.serialVM = serial
                         } else {
                             serial!!.open()
-                            serial!!.setBaudRate(11520)
+                            serial!!.setBaudRate(115200)
                             serial!!.setDataBits(UsbSerialInterface.DATA_BITS_8)
                             serial!!.setStopBits(UsbSerialInterface.STOP_BITS_1)
-                            serial!!.setParity(UsbSerialInterface.PARITY_ODD)
+                            serial!!.setParity(UsbSerialInterface.PARITY_NONE)
                             serial!!.setFlowControl(UsbSerialInterface.FLOW_CONTROL_OFF)
                             DroneAlertService.serialVM = serial
                         }
