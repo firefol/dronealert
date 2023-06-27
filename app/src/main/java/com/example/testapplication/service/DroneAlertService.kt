@@ -83,7 +83,8 @@ class DroneAlertService: Service() {
                 else MediaPlayer.create(context, R.raw.sirena)
                 model = context.let { Model.newInstance(it) }
                 vibration = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-                if (checkSA6) startScanSA6()
+                if (checkSA6)
+                    startScanSA6()
                 else startScan()
                 read()
                 convertToBitmap()
@@ -178,7 +179,7 @@ class DroneAlertService: Service() {
             }
 
         private const val _commandPattern = "scn %1\$d %2\$d %3\$d %4\$d %5\$d \r\n"
-        private const val _commandPatternSA6 = "scn20 %1\$d %2\$d %3\$d %4\$d %5\$d %6\$d %7\$d  \r\n"
+        private const val _commandPatternSA6 = "scn20 %1\$d %2\$d %3\$d %4\$d %5\$d %6\$d %7\$d\r\n"
 
         // scn  - scan command
         // %1$d - start frequency, long value in Hz
@@ -264,7 +265,7 @@ class DroneAlertService: Service() {
                     // command id (can be a random integer value)
                 )
                 serialVM?.write(command.toByteArray())
-                delay(150L)
+                delay(200L)
             }
         }
         job!!.start()
@@ -308,13 +309,18 @@ class DroneAlertService: Service() {
         if (messageLength == 2 || messageLength == 6) {
             processMessage(message)
         } else {
-            if (messageLength > 100) {
-                val q = (_stop - _start) / _step * 2
-                val w = messageLength - q
-                test(message, w.toInt())
-            } else {
-                val readMessage = message.let { String(it, 0, message.size) }
-                processMessage(readMessage)
+            try {
+                if (messageLength > 100) {
+                    val q = (_stop - _start) / _step * 2
+                    val w = messageLength - q
+                    test(message, w.toInt())
+
+                } else {
+                    val readMessage = message.let { String(it, 0, message.size) }
+                    processMessage(readMessage)
+                }
+            } catch (e:Exception) {
+                println(e)
             }
         }
     }
@@ -372,10 +378,7 @@ class DroneAlertService: Service() {
         if (readMessage.contentEquals("l")) {
             _pointShift++
             _pointIndex = 0
-        } else if(!readMessage.contentEquals("l") && !readMessage.contentEquals("complete")) {
-            val stringValue = readMessage.replace(" ", "")
-            println(123)
-        } else if (readMessage.contentEquals("complete")) {
+        }  else if (readMessage.contentEquals("complete")) {
             val list = listCoordinates.sortedBy { it.x }
             val xCoordinates = mutableListOf<Double>()
             val yCoordinates = mutableListOf<Double>()
@@ -436,20 +439,31 @@ class DroneAlertService: Service() {
                     } catch (e: Exception) {
                         println(e)
                     }
-                } /*else if (list.size == 501 && _step == 250000L) {
+                } else if (checkSA6) {
                 try {
-                if (recordCheck) {
-                    recordList.add(0,list)
-                }
-                coord2[request].add(0,list)
-                liveDataCoordinates.postValue(list)
+                //if (recordCheck) {
+                //    recordList.add(0,list)
+                //}
+                    list.forEach{
+                        xCoordinates.add(it.x)
+                        yCoordinates.add(it.y)
+                    }
+                    intent.action = GET_DATA
+                    intent.putExtra(X_COORDINATS, xCoordinates.toDoubleArray())
+                    intent.putExtra(Y_COORDINATS, yCoordinates.toDoubleArray())
+                    intent.putExtra(COUNTER, request)
+                    intent.putExtra(START, starList[request])
+                    intent.putExtra(STOP, stopList[request])
+                    applicationContext.sendBroadcast(intent)
+                    coord2[request].add(0, list)
+                //liveDataCoordinates.postValue(list)
                 val listCoordinates = coord2[request]
-                convertToBitmap(listCoordinates)
+                //convertToBitmap(listCoordinates)
                 onCommandComplete()
                 } catch (e:Exception) {
                     println(e)
                 }
-            }*/ else if (list.size == (((stopList[request] - starList[request]) / _step).toInt() +
+            } else if (list.size == (((stopList[request] - starList[request]) / _step).toInt() +
                             ((stopList[request] - starList[request]) / 1000000L).toInt() + 1) && _step == 250000L
                 ) {
                     try {

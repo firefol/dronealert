@@ -91,7 +91,7 @@ class AnalyzeFragment : Fragment() {
                     graphView.viewport.setMinX((mainViewModel.starList[i] / 1000000L).toDouble())
                     graphView.viewport.setMaxX((mainViewModel.stopList[i] / 1000000L).toDouble())
                     graphView.viewport.isXAxisBoundsManual = true
-                    graphView.viewport.setMinY(-100.00)
+                    graphView.viewport.setMinY(-120.00)
                     graphView.viewport.setMaxY(-20.00)
                     graphView.viewport.isYAxisBoundsManual = true
                 }
