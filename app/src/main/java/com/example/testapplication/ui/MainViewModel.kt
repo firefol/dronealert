@@ -14,6 +14,7 @@ class MainViewModel: ViewModel() {
     var graphCounter = 1
     var maxGraphCounter = 5
     var checkConnect = false
+    var deviceCount = 0
     var delay = 150L
     var check = true
     var recordCheck = false

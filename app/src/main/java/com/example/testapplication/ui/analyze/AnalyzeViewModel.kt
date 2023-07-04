@@ -33,7 +33,9 @@ class AnalyzeViewModel : ViewModel() {
     var check = true
     var recordCheck = false
     var soundType = 0
+    var i = 0
     private var liveDataCoordinates: MutableLiveData<List<DataPoint>> = MutableLiveData()
+    var test = mutableListOf<MutableLiveData<List<DataPoint>>>()
     var coord2 = mutableListOf<MutableList<List<DataPoint>>>()
     var recordList = mutableListOf<List<DataPoint>>()
     private var liveDataSeries1: MutableLiveData<List<List<Bitmap>>> = MutableLiveData()
@@ -79,7 +81,7 @@ class AnalyzeViewModel : ViewModel() {
                     continue
                 else {
                     val color = 255 + coord[i][j].y.toInt()
-                    val colorForPixel = densityColor(color)
+                    val colorForPixel = if (DroneAlertService.checkSA6) densityColorSA6(color) else densityColor(color)
                     bitmap.setPixel(
                         x,
                         i,
@@ -123,6 +125,15 @@ class AnalyzeViewModel : ViewModel() {
     private fun densityColor(color: Int): Int {
         val k = 255 / 40
         val x = color - 160
+        val _color = x * k
+        return if (_color<30) 30
+        else if (_color >= 255) 255
+        else _color
+    }
+
+    private fun densityColorSA6(color: Int): Int {
+        val k = 255 / 40
+        val x = color - 150
         val _color = x * k
         return if (_color<30) 30
         else if (_color >= 255) 255

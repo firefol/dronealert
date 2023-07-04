@@ -32,6 +32,7 @@ import androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
 import androidx.core.content.ContextCompat.registerReceiver
 import androidx.core.graphics.drawable.toBitmap
 import androidx.core.view.get
+import androidx.core.view.size
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.ViewModelProvider
@@ -77,6 +78,13 @@ class AnalyzeFragment : Fragment() {
         analyzeViewModel.soundType = setting.connectionType
         analyzeViewModel.graphCounter = mainViewModel.graphCounter
         analyzeViewModel.coord2 = mainViewModel.coord2
+        val intent = Intent()
+        intent.action = DroneAlertService.SET_DATA
+        intent.putExtra(DroneAlertService.START_LIST, mainViewModel.starList.toLongArray())
+        intent.putExtra(DroneAlertService.STOP_LIST, mainViewModel.stopList.toLongArray())
+        intent.putExtra(DroneAlertService.STEP, mainViewModel._step)
+        intent.putExtra(DroneAlertService.GRAPHCOUNTER, mainViewModel.graphCounter)
+        activity?.sendBroadcast(intent)
         binding.linearLayout.post {
             if (analyzeViewModel.graphCounter > 6) {
                 binding.linearLayout.visibility = GONE
@@ -91,8 +99,13 @@ class AnalyzeFragment : Fragment() {
                     graphView.viewport.setMinX((mainViewModel.starList[i] / 1000000L).toDouble())
                     graphView.viewport.setMaxX((mainViewModel.stopList[i] / 1000000L).toDouble())
                     graphView.viewport.isXAxisBoundsManual = true
-                    graphView.viewport.setMinY(-100.00)
-                    graphView.viewport.setMaxY(-20.00)
+                    if (DroneAlertService.checkSA6) {
+                        graphView.viewport.setMinY(-120.00)
+                        graphView.viewport.setMaxY(-40.00)
+                    } else {
+                        graphView.viewport.setMinY(-100.00)
+                        graphView.viewport.setMaxY(-20.00)
+                    }
                     graphView.viewport.isYAxisBoundsManual = true
                 }
                 analyzeViewModel.getLiveDataObserver().observe(viewLifecycleOwner) { list ->
@@ -194,6 +207,7 @@ class AnalyzeFragment : Fragment() {
         }
         binding.backButton.setOnClickListener {
             analyzeViewModel.check = false
+            mainViewModel.checkConnect = false
             analyzeViewModel.request = 0
             graphCounter = 0
             imageCounter = 0
