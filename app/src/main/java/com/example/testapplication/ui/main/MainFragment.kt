@@ -13,6 +13,8 @@ import android.hardware.usb.UsbManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.view.*
 import android.view.inputmethod.InputMethodManager
@@ -49,6 +51,7 @@ class MainFragment : Fragment() {
     var device: UsbDevice? = null
     var serial: UsbSerialDevice? = null
     var connection: UsbDeviceConnection? = null
+    var devices = 0
     private var allEds: MutableList<View>? = null
     val ACTION_USB_PERMISSION = "permission"
 
@@ -176,48 +179,16 @@ class MainFragment : Fragment() {
                         ).text.toString().toLong() * 1000000L
                     )
                     mainViewModel.coord2.add(mutableListOf())
-                    //mainViewModel.coord2.add(mutableListOf())
                     DroneAlertService.imageList.add(imageViewItem)
                 }
-                if (device?.manufacturerName == "Arinst SSA-Universal") DroneAlertService.checkSA6 = true
+                DroneAlertService.checkSA6 = device?.manufacturerName == "Arinst SSA-Universal"
                 //if (binding.editTextNumber3.text.toString().toInt() <= 250) mainViewModel.delay =
                 //    200L
                 //mainViewModel._step = (binding.editTextNumber3.text.toString().toLong() * 1000L)
                 DroneAlertService.coord2 = mainViewModel.coord2
-                val intent = Intent()
-                intent.action = DroneAlertService.SET_DATA
-                intent.putExtra(DroneAlertService.START_LIST, mainViewModel.starList.toLongArray())
-                intent.putExtra(DroneAlertService.STOP_LIST, mainViewModel.stopList.toLongArray())
-                intent.putExtra(DroneAlertService.STEP, mainViewModel._step)
-                intent.putExtra(DroneAlertService.GRAPHCOUNTER, binding.linearlistlayout.size)
-                activity?.sendBroadcast(intent)
                 mainViewModel.listCoordinates.clear()
                 findNavController().navigate(R.id.analyzeFragment)
             }
-                /*else {
-                mainViewModel.graphCounter = binding.linearlistlayout.size
-                DroneAlertService.coord2.clear()
-                mainViewModel.starList.clear()
-                mainViewModel.stopList.clear()
-                mainViewModel.coord2.clear()
-                DroneAlertService.imageList.clear()
-                for (i in binding.linearlistlayout.indices) {
-                    mainViewModel.starList.add(
-                        binding.linearlistlayout[i].findViewById<EditText>(
-                            R.id.editTextNumber
-                        ).text.toString().toLong() * 1000000L
-                    )
-                    mainViewModel.stopList.add(
-                        binding.linearlistlayout[i].findViewById<EditText>(
-                            R.id.editTextNumber2
-                        ).text.toString().toLong() * 1000000L
-                    )
-                    mainViewModel.coord2.add(mutableListOf())
-                    //mainViewModel.coord2.add(mutableListOf())
-                    DroneAlertService.imageList.add(imageViewItem)
-                }
-                findNavController().navigate(R.id.analyzeFragment)
-            }*/
         }
         allEds = mutableListOf()
         val graphCounterVariants = requireContext().resources.getStringArray(R.array.counter_graph)

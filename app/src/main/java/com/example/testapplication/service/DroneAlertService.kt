@@ -94,6 +94,7 @@ class DroneAlertService: Service() {
                 model?.close()
                 counter = 0
                 request = 0
+                serialVM?.close()
             }
 
         }
@@ -195,6 +196,7 @@ class DroneAlertService: Service() {
         // amplitudeIntValue = 18600 => amplitude = ((80 * 10.0 - 18659)) / 10.0 = -108.59 dB
         private const val AMPLITUDE_ACCURACY_COEFFICIENT = 10.0 // one decimal place
         private const val _intermediateFrequency = 500000L
+        var serialVMList = mutableListOf<UsbSerialDevice?>()
         var serialVM: UsbSerialDevice? = null
         var starList = mutableListOf<Long>()
         var stopList = mutableListOf<Long>()
@@ -329,8 +331,10 @@ class DroneAlertService: Service() {
         var i = 0
         var k = 0
         while (i != message.size - size) {
-            if (message[i]< 0) message[i]= (message[i] + 128).toByte()
-            if (message[i+1]< 0) message[i+1]= (message[i+1] + 128).toByte()
+            if (_start < 5000000000L) {
+                if (message[i] < 0) message[i] = (message[i] + 128).toByte()
+                if (message[i + 1] < 0) message[i + 1] = (message[i + 1] + 128).toByte()
+            }
             val qwe = message[i].toInt() shl 8 or message[i + 1].toInt()
             val data = qwe  and 2047
             val amplitude = (BASE_AMPLITUDE_CALCULATION_LEVEL * AMPLITUDE_ACCURACY_COEFFICIENT - data) / AMPLITUDE_ACCURACY_COEFFICIENT - _attenuation
@@ -439,7 +443,7 @@ class DroneAlertService: Service() {
                     } catch (e: Exception) {
                         println(e)
                     }
-                } else if (checkSA6) {
+                } else if (checkSA6 && list.size == ((_stop - _start) / _step).toInt()) {
                 try {
                 //if (recordCheck) {
                 //    recordList.add(0,list)
@@ -563,7 +567,6 @@ class DroneAlertService: Service() {
         for (i in 0 until coord.size) {
             var x = 0
             if (i >= 100) break
-            Log.i("size", i.toString())
             for (j in 0 until coord[i].size) {
                 if (j == coord[i].lastIndex) {
                     break
@@ -572,7 +575,7 @@ class DroneAlertService: Service() {
                     continue
                 else {
                     val color = 255 + coord[i][j].y.toInt()
-                    val colorForPixel = densityColor(color)
+                    val colorForPixel = if (checkSA6) densityColorSA6(color) else densityColor(color)
                     bitmap.setPixel(
                         x,
                         i,
@@ -604,9 +607,17 @@ class DroneAlertService: Service() {
         else _color
     }
 
+    private fun densityColorSA6(color: Int): Int {
+        val k = 255 / 40
+        val x = color - 150
+        val _color = x * k
+        return if (_color<30) 30
+        else if (_color >= 255) 255
+        else _color
+    }
+
     @RequiresApi(Build.VERSION_CODES.O)
     fun scanImage(mediaPlayer: MediaPlayer, model: Model, bitmap: Bitmap, vibration: Vibrator) {
-        //CoroutineScope(Dispatchers.Default).launch {
             val image = Bitmap.createScaledBitmap(bitmap, 64, 64, true)
             val inputFeature0 =
                 TensorBuffer.createFixedSize(intArrayOf(1, 64, 64, 3), DataType.FLOAT32)
@@ -644,7 +655,6 @@ class DroneAlertService: Service() {
             }
             val classes = arrayOf("Drone", "Non Drone")
             Log.i("Dron", classes[maxPos])
-            //liveDataDroneStatus.postValue(classes[maxPos])
             if (classes[maxPos]=="Drone"){
                 if (soundType == 0) {
                     vibration.vibrate(
@@ -657,12 +667,7 @@ class DroneAlertService: Service() {
                     if (mediaPlayer.isPlaying) println("уже играет")
                     else mediaPlayer.start()
                 }
-                /*val path = Uri.parse(resources.assets.open("alarmBuzzer.mp3").toString())
-                val player: MediaPlayer = MediaPlayer.create(requireContext(),path)
-                player.isLooping = true
-                player.start()*/
             }
-        //}
         counter++
     }
 }

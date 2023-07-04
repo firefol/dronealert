@@ -33,8 +33,8 @@ class SettingFragment : Fragment() {
     @SuppressLint("UseCompatLoadingForDrawables")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        binding.toolbar2?.navigationIcon = resources.getDrawable(R.drawable.baseline_arrow_back_24)
-        binding.toolbar2?.setNavigationOnClickListener(View.OnClickListener {
+        binding.toolbar2.navigationIcon = resources.getDrawable(R.drawable.baseline_arrow_back_24)
+        binding.toolbar2.setNavigationOnClickListener(View.OnClickListener {
             findNavController().navigate(R.id.mainFragment)
         })
         val viewAdapter = ViewAdapter()
