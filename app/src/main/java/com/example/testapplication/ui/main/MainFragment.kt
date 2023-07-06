@@ -159,7 +159,7 @@ class MainFragment : Fragment() {
             val imageView = layoutInflater.inflate(R.layout.imageview_item, null,
                 false)
             val imageViewItem = imageView.findViewById<ImageView>(R.id.imageView)
-            if (DroneAlertService.serialVM != null) {
+            if (DroneAlertService.serialVMList.isNotEmpty()) {
                 DroneAlertService.imageCounter = binding.linearlistlayout.size
                 mainViewModel.graphCounter = binding.linearlistlayout.size
                 DroneAlertService.coord2.clear()
@@ -248,7 +248,21 @@ class MainFragment : Fragment() {
         val usbDevices: HashMap<String, UsbDevice>? = usbManager.deviceList
         if (!usbDevices?.isEmpty()!!) {
             var keep = true
-            usbDevices.forEach { entry ->
+            devices = usbDevices.size
+            val asd = usbDevices.values
+            if (mainViewModel.deviceCount != devices) {
+                device = asd.elementAt(mainViewModel.deviceCount)
+                val flags = FLAG_MUTABLE
+                val intent = PendingIntent.getBroadcast(
+                    requireContext(),
+                    0,
+                    Intent(ACTION_USB_PERMISSION),
+                    flags
+                )
+                usbManager.requestPermission(device, intent)
+            } else
+                keep = false
+            /*usbDevices.forEach { entry ->
                 device = entry.value
                 val deviceVendorId = device!!.vendorId
                 val flags =  FLAG_MUTABLE
@@ -260,7 +274,7 @@ class MainFragment : Fragment() {
                 )
                 usbManager.requestPermission(device, intent)
                 keep = false
-            }
+            }*/
             if (!keep) {
                 return
             }
@@ -271,7 +285,10 @@ class MainFragment : Fragment() {
     }
 
     private fun disconnect() {
-        serial?.close()
+        //for (i in DroneAlertService.serialVMList.indices)
+        //    DroneAlertService.serialVMList[i]?.close()
+        DroneAlertService.serialVMList.clear()
+        //serial?.close()
     }
 
     private val brodcastReciever = object : BroadcastReceiver() {
@@ -290,7 +307,10 @@ class MainFragment : Fragment() {
                             serial!!.setStopBits(UsbSerialInterface.STOP_BITS_1)
                             serial!!.setParity(UsbSerialInterface.PARITY_NONE)
                             serial!!.setFlowControl(UsbSerialInterface.FLOW_CONTROL_OFF)
-                            DroneAlertService.serialVM = serial
+                            //DroneAlertService.serialVM = serial
+                            DroneAlertService.serialVMList.add(serial)
+                            mainViewModel.deviceCount++
+                            starUsbConnecting()
                         } else {
                             serial!!.open()
                             serial!!.setBaudRate(115200)
@@ -298,7 +318,10 @@ class MainFragment : Fragment() {
                             serial!!.setStopBits(UsbSerialInterface.STOP_BITS_1)
                             serial!!.setParity(UsbSerialInterface.PARITY_NONE)
                             serial!!.setFlowControl(UsbSerialInterface.FLOW_CONTROL_OFF)
-                            DroneAlertService.serialVM = serial
+                            //DroneAlertService.serialVM = serial
+                            DroneAlertService.serialVMList.add(serial)
+                            mainViewModel.deviceCount++
+                            starUsbConnecting()
                         }
                     } else {
                         println("port is null")

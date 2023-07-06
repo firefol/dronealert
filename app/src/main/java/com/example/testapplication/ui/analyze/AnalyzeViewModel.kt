@@ -189,7 +189,7 @@ class AnalyzeViewModel : ViewModel() {
         viewModelScope.launch(Dispatchers.Default) {
             val listcoordinates = mutableListOf<DataPoint>()
             for (i in xList.indices) {
-                val coordinates = DataPoint(xList[i],  yList[i])
+                val coordinates = DataPoint(xList[i], yList[i])
                 listcoordinates.add(coordinates)
             }
             val list = listcoordinates

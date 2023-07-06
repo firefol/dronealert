@@ -167,8 +167,15 @@ class AnalyzeFragment : Fragment() {
         analyzeViewModel.getLiveDataDroneStatus().observe(viewLifecycleOwner) {
             if (droneStatusCounter == analyzeViewModel.graphCounter) droneStatusCounter = 0
             val imageViewItem = binding.gridLayout[droneStatusCounter].findViewById<ImageView>(R.id.imageView)
-            if (it == "Drone") imageViewItem.setBackgroundResource(R.drawable.image_background)
-            else imageViewItem.setBackgroundResource(0)
+            val textViewItem = binding.gridLayout[droneStatusCounter].findViewById<TextView>(R.id.textViewDiapason)
+            if (it == "Drone") {
+                imageViewItem.setBackgroundResource(R.drawable.image_background)
+                textViewItem.setBackgroundResource(R.drawable.image_background)
+            }
+            else {
+                imageViewItem.setBackgroundResource(0)
+                textViewItem.setBackgroundResource(0)
+            }
             droneStatusCounter++
         }
         binding.screenButton.setOnClickListener {
